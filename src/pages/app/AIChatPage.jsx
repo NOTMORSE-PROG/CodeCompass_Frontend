@@ -1,5 +1,5 @@
 /**
- * AI Chat page — real-time Taglish conversation with PathFinder AI.
+ * AI Chat page — real-time Taglish conversation with CodeCompass AI.
  * WebSocket streaming via Django Channels.
  */
 import { useState, useEffect, useRef } from 'react'
@@ -49,7 +49,7 @@ export default function AIChatPage() {
   return (
     <div className="flex flex-col h-full max-h-[calc(100vh-8rem)]">
       <div className="mb-4">
-        <h1 className="text-2xl font-bold text-brand-black">PathFinder AI</h1>
+        <h1 className="text-2xl font-bold text-brand-black">CodeCompass AI</h1>
         <p className="text-brand-gray-mid text-sm">
           Magtanong sa Taglish, English, o Filipino — sagot sa loob ng ilang segundo!
         </p>
@@ -61,7 +61,7 @@ export default function AIChatPage() {
         {messages.length === 0 && !isStreaming && (
           <div className="text-center py-8">
             <div className="text-4xl mb-3">🤖</div>
-            <h3 className="font-bold text-brand-black mb-1">Kumusta! Ako si PathFinder AI</h3>
+            <h3 className="font-bold text-brand-black mb-1">Kumusta! Ako si CodeCompass AI</h3>
             <p className="text-brand-gray-mid text-sm max-w-sm mx-auto">
               Career mentor mo para sa IT sa Pilipinas. Tanungin mo ako tungkol sa career paths,
               certifications, o kung saan ka mag-aaral!

@@ -18,7 +18,7 @@ export default function AuthLayout() {
       {/* Logo / Brand */}
       <div className="mb-8 text-center">
         <h1 className="text-4xl font-extrabold text-brand-yellow tracking-tight">
-          PathFinder
+          CodeCompass
         </h1>
         <p className="text-brand-gray-mid text-sm mt-1">
           Your AI-powered career roadmap — para sa mga CCS students
@@ -32,7 +32,7 @@ export default function AuthLayout() {
 
       {/* Footer */}
       <p className="text-brand-gray-mid text-xs mt-6">
-        © 2026 PathFinder — Built for CCS Students in the Philippines
+        © 2026 CodeCompass — Built for CCS Students in the Philippines
       </p>
     </div>
   )

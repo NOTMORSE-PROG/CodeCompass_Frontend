@@ -48,7 +48,7 @@ export default function Sidebar() {
     <aside className="w-64 bg-brand-black flex flex-col h-full flex-shrink-0">
       {/* Logo */}
       <div className="px-6 py-5 border-b border-brand-black-border">
-        <span className="text-brand-yellow font-extrabold text-2xl tracking-tight">PathFinder</span>
+        <span className="text-brand-yellow font-extrabold text-2xl tracking-tight">CodeCompass</span>
         <p className="text-brand-gray-mid text-xs mt-0.5 capitalize">
           {user?.role?.replace('_', ' ')}
         </p>

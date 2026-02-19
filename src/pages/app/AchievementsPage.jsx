@@ -6,10 +6,10 @@ import { BoltIcon, FireIcon, TrophyIcon } from '@heroicons/react/24/solid'
 import { LockClosedIcon } from '@heroicons/react/24/outline'
 
 const BADGES = [
-  { slug: 'pioneer', label: 'Pioneer', emoji: '🚀', description: 'First to join PathFinder', earned: true },
+  { slug: 'pioneer', label: 'Pioneer', emoji: '🚀', description: 'First to join CodeCompass', earned: true },
   { slug: 'roadmap-ready', label: 'Roadmap Ready', emoji: '🗺️', description: 'Generated your first roadmap', earned: false },
   { slug: 'first-step', label: 'First Step', emoji: '👣', description: 'Completed your first roadmap node', earned: false },
-  { slug: 'curious', label: 'Curious', emoji: '🔍', description: 'Asked 10 questions to PathFinder AI', earned: false },
+  { slug: 'curious', label: 'Curious', emoji: '🔍', description: 'Asked 10 questions to CodeCompass AI', earned: false },
   { slug: 'connected', label: 'Connected', emoji: '🤝', description: 'Sent your first mentor request', earned: false },
   { slug: 'week-warrior', label: 'Week Warrior', emoji: '🔥', description: 'Maintained a 7-day streak', earned: false },
   { slug: 'month-master', label: 'Month Master', emoji: '📅', description: 'Maintained a 30-day streak', earned: false },

@@ -80,7 +80,7 @@ export default function RegisterPage() {
     <div>
       <h2 className="text-2xl font-bold text-white mb-1">Gumawa ng Account</h2>
       <p className="text-brand-gray-mid text-sm mb-6">
-        Sumali sa PathFinder — ang career mentor mo sa IT!
+        Sumali sa CodeCompass — ang career mentor mo sa IT!
       </p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

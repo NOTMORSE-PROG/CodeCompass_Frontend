@@ -1,5 +1,5 @@
 /**
- * Axios instance configured for PathFinder API.
+ * Axios instance configured for CodeCompass API.
  * Automatically attaches JWT access token from localStorage.
  * Auto-refreshes token on 401 and retries the original request.
  */

@@ -9,7 +9,7 @@ export default function OnboardingLayout() {
     <div className="min-h-screen bg-brand-gray-warm flex flex-col">
       {/* Top bar */}
       <header className="bg-brand-black py-4 px-6 flex items-center justify-between">
-        <span className="text-brand-yellow font-extrabold text-xl">PathFinder</span>
+        <span className="text-brand-yellow font-extrabold text-xl">CodeCompass</span>
         <span className="text-brand-gray-mid text-sm">Setting up your career path...</span>
       </header>
 

@@ -42,7 +42,7 @@ const useAuthStore = create((set, get) => ({
     try {
       const { data } = await authApi.register(formData)
       get()._saveSession(data)
-      toast.success(`Welcome to PathFinder, ${data.user.first_name}!`)
+      toast.success(`Welcome to CodeCompass, ${data.user.first_name}!`)
       return { success: true, user: data.user }
     } catch (error) {
       const msg = error.response?.data?.detail
