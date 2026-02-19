@@ -6,10 +6,10 @@ export default function DashboardPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold text-brand-black mb-1">
-        Kamusta, {user?.fullName?.split(' ')[0]}! 👋
+        Welcome back, {user?.fullName?.split(' ')[0]}! 👋
       </h1>
       <p className="text-brand-gray-mid mb-6">
-        Handa ka na bang mag-level up ngayon?
+        Ready to level up your skills today?
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -27,11 +27,11 @@ export default function DashboardPage() {
         <div className="card border-l-4 border-l-blue-400">
           <h3 className="font-semibold text-brand-black mb-1">AI Career Assistant</h3>
           <p className="text-brand-gray-mid text-sm mb-3">
-            Magtanong tungkol sa iyong career path
+            Ask anything about your career path
           </p>
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
-            <span className="text-xs text-green-600 font-medium">Online — Handa sa Taglish!</span>
+            <span className="text-xs text-green-600 font-medium">Online — Ready to help!</span>
           </div>
         </div>
 

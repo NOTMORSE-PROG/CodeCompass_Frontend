@@ -94,6 +94,41 @@ const useAuthStore = create((set, get) => ({
     }))
   },
 
+  /** Sign in with Google — verifies ID token on backend, creates account if needed. */
+  loginWithGoogle: async (credential) => {
+    set({ isLoading: true })
+    try {
+      const { data } = await authApi.googleAuth(credential)
+      get()._saveSession(data)
+      if (!data.isNewUser) {
+        toast.success(`Welcome back, ${data.user.firstName || data.user.first_name}!`)
+      }
+      return { success: true, isNewUser: data.isNewUser }
+    } catch (error) {
+      const msg = error.response?.data?.detail || 'Google sign-in failed.'
+      toast.error(msg)
+      return { success: false, error: msg }
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
+  /** Set role for new Google OAuth users (before onboarding). Returns fresh tokens. */
+  setRole: async (role) => {
+    set({ isLoading: true })
+    try {
+      const { data } = await authApi.setRole(role)
+      get()._saveSession(data)
+      return { success: true }
+    } catch (error) {
+      const msg = error.response?.data?.detail || 'Failed to set role.'
+      toast.error(msg)
+      return { success: false, error: msg }
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
   /** Internal: save tokens and decode user from JWT. */
   _saveSession: ({ access, refresh, user }) => {
     localStorage.setItem('access_token', access)

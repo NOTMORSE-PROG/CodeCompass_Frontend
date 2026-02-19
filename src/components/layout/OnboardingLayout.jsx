@@ -1,16 +1,23 @@
 /**
  * Onboarding layout — full-screen, no sidebar.
- * Clean minimal UI with TIP yellow accents for the quiz flow.
+ * White background with yellow accent bar for the quiz flow.
  */
 import { Outlet } from 'react-router-dom'
 
 export default function OnboardingLayout() {
   return (
-    <div className="min-h-screen bg-brand-gray-warm flex flex-col">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Top bar */}
-      <header className="bg-brand-black py-4 px-6 flex items-center justify-between">
-        <span className="text-brand-yellow font-extrabold text-xl">CodeCompass</span>
-        <span className="text-brand-gray-mid text-sm">Setting up your career path...</span>
+      <header className="bg-white border-b border-gray-200 py-4 px-6 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="w-7 h-7 bg-brand-yellow rounded-md flex items-center justify-center">
+            <span className="text-brand-black font-black text-sm">C</span>
+          </div>
+          <span className="text-brand-black font-extrabold text-lg">
+            Code<span className="text-brand-yellow">Compass</span>
+          </span>
+        </div>
+        <span className="text-gray-500 text-sm">Setting up your career path...</span>
       </header>
 
       {/* Main content */}

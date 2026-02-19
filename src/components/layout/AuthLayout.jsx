@@ -1,5 +1,5 @@
 /**
- * Auth layout — centered card with TIP yellow/black branding.
+ * Auth layout — white centered card with TIP yellow accent.
  * Used for Login and Register pages.
  */
 import { Outlet, Navigate } from 'react-router-dom'
@@ -14,24 +14,29 @@ export default function AuthLayout() {
   }
 
   return (
-    <div className="min-h-screen bg-brand-black flex flex-col items-center justify-center px-4">
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
       {/* Logo / Brand */}
       <div className="mb-8 text-center">
-        <h1 className="text-4xl font-extrabold text-brand-yellow tracking-tight">
-          CodeCompass
-        </h1>
-        <p className="text-brand-gray-mid text-sm mt-1">
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <div className="w-9 h-9 bg-brand-yellow rounded-lg flex items-center justify-center">
+            <span className="text-brand-black font-black text-lg">C</span>
+          </div>
+          <h1 className="text-3xl font-extrabold text-brand-black tracking-tight">
+            Code<span className="text-brand-yellow">Compass</span>
+          </h1>
+        </div>
+        <p className="text-gray-500 text-sm mt-1">
           Your AI-powered career roadmap — para sa mga CCS students
         </p>
       </div>
 
-      {/* Card */}
-      <div className="w-full max-w-md bg-brand-black-soft border border-brand-black-border rounded-2xl p-8 shadow-2xl">
+      {/* Card — white with yellow top accent border */}
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-lg border border-gray-200 border-t-4 border-t-brand-yellow p-8">
         <Outlet />
       </div>
 
       {/* Footer */}
-      <p className="text-brand-gray-mid text-xs mt-6">
+      <p className="text-gray-400 text-xs mt-6">
         © 2026 CodeCompass — Built for CCS Students in the Philippines
       </p>
     </div>

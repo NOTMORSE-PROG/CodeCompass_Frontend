@@ -58,7 +58,7 @@ export default function AchievementsPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-brand-black">Achievements</h1>
         <p className="text-brand-gray-mid text-sm mt-0.5">
-          Kumita ng XP, badges, at makipaglaban sa iyong kapwa students.
+          Earn XP, collect badges, and compete with other students.
         </p>
       </div>
 
@@ -111,7 +111,7 @@ export default function AchievementsPage() {
               </div>
               <div className="flex-1">
                 <p className="text-sm text-brand-gray-mid mb-1">
-                  Mag-login at matuto araw-araw para mapanatili ang iyong streak!
+                  Log in and learn every day to keep your streak going!
                 </p>
                 <p className="text-xs text-brand-gray-mid">Best streak: 0 days</p>
               </div>
@@ -171,8 +171,8 @@ export default function AchievementsPage() {
             ))}
           </div>
           <div className="mt-4 pt-3 border-t border-gray-100 text-center">
-            <p className="text-xs text-brand-gray-mid">Ikaw ay wala pa sa top 10.</p>
-            <p className="text-xs text-brand-yellow font-medium mt-0.5">Kumita ng XP para pumasok!</p>
+            <p className="text-xs text-brand-gray-mid">You're not in the top 10 yet.</p>
+            <p className="text-xs text-brand-yellow font-medium mt-0.5">Earn XP to climb the leaderboard!</p>
           </div>
         </div>
       </div>

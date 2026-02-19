@@ -7,9 +7,13 @@ import AuthLayout from './components/layout/AuthLayout'
 import AppLayout from './components/layout/AppLayout'
 import OnboardingLayout from './components/layout/OnboardingLayout'
 
+// Landing page
+import LandingPage from './pages/LandingPage'
+
 // Auth pages
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
+import GoogleSetupPage from './pages/auth/GoogleSetupPage'
 
 // Onboarding pages
 import OnboardingPage from './pages/onboarding/OnboardingPage'
@@ -46,6 +50,11 @@ export default function App() {
           <Route path="/auth/register" element={<RegisterPage />} />
         </Route>
 
+        {/* Google OAuth role setup — authenticated, no onboarding check */}
+        <Route element={<ProtectedRoute />}>
+          <Route path="/auth/google-setup" element={<GoogleSetupPage />} />
+        </Route>
+
         {/* Onboarding — authenticated but not onboarded */}
         <Route element={<ProtectedRoute />}>
           <Route element={<OnboardingLayout />}>
@@ -76,9 +85,9 @@ export default function App() {
           </Route>
         </Route>
 
-        {/* Default redirects */}
-        <Route path="/" element={<Navigate to="/auth/login" replace />} />
-        <Route path="*" element={<Navigate to="/app/dashboard" replace />} />
+        {/* Landing page */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   )

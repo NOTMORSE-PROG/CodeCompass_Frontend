@@ -8,7 +8,7 @@ import TopBar from './TopBar'
 
 export default function AppLayout() {
   return (
-    <div className="flex h-screen bg-brand-gray-warm overflow-hidden">
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Sidebar */}
       <Sidebar />
 

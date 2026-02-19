@@ -10,6 +10,9 @@ export const authApi = {
   logout: (refreshToken) => apiClient.post('/auth/logout/', { refresh: refreshToken }),
   me: () => apiClient.get('/auth/me/'),
   changePassword: (data) => apiClient.post('/auth/change-password/', data),
+  // Google OAuth
+  googleAuth: (credential) => apiClient.post('/auth/google/', { credential }),
+  setRole: (role) => apiClient.post('/auth/set-role/', { role }),
 }
 
 /**

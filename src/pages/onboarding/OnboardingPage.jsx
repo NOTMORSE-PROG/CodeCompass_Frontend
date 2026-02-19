@@ -39,7 +39,7 @@ export default function OnboardingPage() {
 
   const handleNext = async () => {
     if (!responses[currentQuestion?.id]) {
-      toast.error('Sagutin muna ang tanong bago mag-next!')
+      toast.error('Please answer the question before continuing.')
       return
     }
 
@@ -85,10 +85,10 @@ export default function OnboardingPage() {
       <div className="text-center py-20">
         <div className="w-16 h-16 border-4 border-brand-yellow border-t-transparent rounded-full animate-spin mx-auto mb-6" />
         <h2 className="text-2xl font-bold text-brand-black mb-2">
-          Gumagawa ng iyong roadmap...
+          Building your roadmap...
         </h2>
         <p className="text-brand-gray-mid">
-          Ang aming AI ay nag-aayos ng iyong personalized na learning path. Sandali lang!
+          Our AI is crafting your personalized learning path. This will only take a moment!
         </p>
       </div>
     )
@@ -101,8 +101,8 @@ export default function OnboardingPage() {
       {/* Progress */}
       <div className="mb-6">
         <div className="flex justify-between text-sm text-brand-gray-mid mb-2">
-          <span>Tanong {currentIndex + 1} ng {questions.length}</span>
-          <span>{Math.round(progress)}% tapos na</span>
+          <span>Question {currentIndex + 1} of {questions.length}</span>
+          <span>{Math.round(progress)}% complete</span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div
@@ -166,7 +166,7 @@ export default function OnboardingPage() {
           className="px-8 py-2.5 rounded-lg bg-brand-yellow text-brand-black font-bold
                      hover:bg-brand-yellow-dark active:scale-95 transition-all"
         >
-          {currentIndex === questions.length - 1 ? 'Tapusin at Gumawa ng Roadmap!' : 'Susunod →'}
+          {currentIndex === questions.length - 1 ? 'Finish & Generate Roadmap!' : 'Next →'}
         </button>
       </div>
     </div>

@@ -8,10 +8,10 @@ import useChatStore from '../../stores/chatStore'
 import useAuthStore from '../../stores/authStore'
 
 const SUGGESTED_PROMPTS = [
-  'Ano ang magandang career path para sa CS graduate sa Pilipinas?',
-  'Paano ako magiging fullstack developer?',
-  'Anong certifications ang dapat ko kunin bilang fresh graduate?',
-  'Magkano ang sweldo ng software engineer sa Philippines?',
+  'What are good career paths for CS graduates in the Philippines?',
+  'How do I become a full-stack developer?',
+  'What certifications should I get as a fresh graduate?',
+  'What is the average salary of a software engineer in the Philippines?',
 ]
 
 export default function AIChatPage() {
@@ -51,7 +51,7 @@ export default function AIChatPage() {
       <div className="mb-4">
         <h1 className="text-2xl font-bold text-brand-black">CodeCompass AI</h1>
         <p className="text-brand-gray-mid text-sm">
-          Magtanong sa Taglish, English, o Filipino — sagot sa loob ng ilang segundo!
+          Ask anything about your career, certifications, or learning path — answers in seconds!
         </p>
       </div>
 
@@ -61,10 +61,10 @@ export default function AIChatPage() {
         {messages.length === 0 && !isStreaming && (
           <div className="text-center py-8">
             <div className="text-4xl mb-3">🤖</div>
-            <h3 className="font-bold text-brand-black mb-1">Kumusta! Ako si CodeCompass AI</h3>
+            <h3 className="font-bold text-brand-black mb-1">Hi! I'm CodeCompass AI</h3>
             <p className="text-brand-gray-mid text-sm max-w-sm mx-auto">
-              Career mentor mo para sa IT sa Pilipinas. Tanungin mo ako tungkol sa career paths,
-              certifications, o kung saan ka mag-aaral!
+              Your AI career mentor for IT in the Philippines. Ask me about career paths,
+              certifications, or where to study!
             </p>
 
             {/* Suggested prompts */}
@@ -132,7 +132,7 @@ export default function AIChatPage() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           disabled={isStreaming}
-          placeholder="Magtanong sa Taglish o English... (Enter para ipadala)"
+          placeholder="Ask anything... (Press Enter to send)"
           rows={2}
           className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-brand-black
                      placeholder:text-brand-gray-mid resize-none

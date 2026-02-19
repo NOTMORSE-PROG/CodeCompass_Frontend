@@ -10,7 +10,7 @@
   }
 
   body {
-    @apply bg-brand-gray-warm text-brand-black;
+    @apply bg-gray-50 text-brand-black;
   }
 
   * {
@@ -28,28 +28,33 @@
 
   /* Secondary / outline button */
   .btn-secondary {
-    @apply border border-brand-yellow text-brand-yellow bg-transparent font-semibold
-           px-4 py-2 rounded-lg hover:bg-brand-yellow hover:text-brand-black
+    @apply border-2 border-brand-yellow text-brand-black bg-transparent font-semibold
+           px-4 py-2 rounded-lg hover:bg-brand-yellow
            active:scale-95 transition-all duration-150;
   }
 
-  /* Ghost button (dark bg) */
+  /* Ghost button (light bg) */
   .btn-ghost {
-    @apply text-brand-gray-mid bg-transparent px-4 py-2 rounded-lg
-           hover:bg-brand-black-muted hover:text-white transition-all duration-150;
+    @apply text-gray-500 bg-transparent px-4 py-2 rounded-lg
+           hover:bg-gray-100 hover:text-brand-black transition-all duration-150;
   }
 
-  /* Input field */
+  /* Input field — light theme */
   .input {
-    @apply w-full px-4 py-2.5 rounded-lg border border-brand-black-border
-           bg-white text-brand-black placeholder:text-brand-gray-mid
+    @apply w-full px-4 py-2.5 rounded-lg border border-gray-300
+           bg-white text-brand-black placeholder:text-gray-400
            focus:outline-none focus:ring-2 focus:ring-brand-yellow focus:border-transparent
            transition-all duration-150;
   }
 
-  /* Card */
+  /* Card — white with subtle border */
   .card {
     @apply bg-white rounded-xl border border-gray-200 shadow-sm p-6;
+  }
+
+  /* Card with yellow left accent bar */
+  .card-accent {
+    @apply bg-white rounded-xl border border-gray-200 shadow-sm p-6 border-l-4 border-l-brand-yellow;
   }
 
   /* Card on dark background */
@@ -67,7 +72,7 @@
   }
 
   .badge-dark {
-    @apply badge bg-brand-black-muted text-brand-yellow-light;
+    @apply badge bg-brand-black text-white;
   }
 
   /* Section heading */
@@ -86,7 +91,7 @@
 }
 
 .react-flow__node-custom.status-available {
-  @apply border-brand-yellow bg-white text-brand-black shadow-brand-yellow/30;
+  @apply border-brand-yellow bg-white text-brand-black;
 }
 
 .react-flow__node-custom.status-in_progress {
@@ -104,13 +109,13 @@
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-brand-gray-warm;
+  @apply bg-gray-100;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-brand-black-muted rounded-full;
+  @apply bg-gray-300 rounded-full;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-brand-gray-mid;
+  @apply bg-gray-400;
 }
