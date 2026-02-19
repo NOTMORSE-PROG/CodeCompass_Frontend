@@ -126,7 +126,7 @@ export default function JobsPage() {
         <div>
           <h1 className="text-2xl font-bold text-brand-black">Job Board</h1>
           <p className="text-brand-gray-mid text-sm mt-0.5">
-            IT jobs sa Pilipinas — filtered para sa iyong skills at career path.
+            IT jobs in the Philippines — filtered for your skills and career path.
           </p>
         </div>
         <span className="badge-yellow">Philippines Only</span>

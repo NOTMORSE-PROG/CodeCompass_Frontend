@@ -120,7 +120,7 @@ export default function UniversitiesPage() {
         <div>
           <h1 className="text-2xl font-bold text-brand-black">University Finder</h1>
           <p className="text-brand-gray-mid text-sm mt-0.5">
-            Hanapin ang tamang unibersidad para sa iyong IT/CS career sa Pilipinas.
+            Find the right university for your IT/CS career in the Philippines.
           </p>
         </div>
         <span className="badge-yellow flex items-center gap-1">

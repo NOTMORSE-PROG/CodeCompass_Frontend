@@ -26,7 +26,7 @@ export default function AuthLayout() {
           </h1>
         </div>
         <p className="text-gray-500 text-sm mt-1">
-          Your AI-powered career roadmap — para sa mga CCS students
+          Your AI-powered career roadmap for CCS students
         </p>
       </div>
 

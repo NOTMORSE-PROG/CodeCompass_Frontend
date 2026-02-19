@@ -82,14 +82,14 @@ const ROLES = [
   },
   {
     emoji: '💻',
-    title: 'Undergraduate',
-    desc: 'Fill skill gaps, track certifications, find internships, and connect with mentors.',
+    title: 'Undergraduate / Shifter',
+    desc: 'Fill skill gaps, earn certifications, find jobs, and connect with mentors. Also for students shifting to CCS.',
     cta: 'Boost My Skills',
   },
   {
     emoji: '🧑‍💼',
     title: 'Mentor',
-    desc: 'Give back to the CCS community. Guide the next generation of Filipino tech professionals.',
+    desc: 'Give back to the CCS community. Guide the next generation of tech professionals in the Philippines.',
     cta: 'Become a Mentor',
   },
 ]

@@ -168,7 +168,7 @@ export default function CertificationsPage() {
         <div>
           <h1 className="text-2xl font-bold text-brand-black">Certifications</h1>
           <p className="text-brand-gray-mid text-sm mt-0.5">
-            Track at i-earn ang mga certifications na magpapalakas ng iyong resume.
+            Track and earn certifications that strengthen your resume.
           </p>
         </div>
         <div className="text-right">

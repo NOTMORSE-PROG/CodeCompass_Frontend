@@ -29,19 +29,19 @@ const ROLES = [
   {
     value: 'incoming_student',
     label: 'Incoming Student',
-    desc: 'Pre-college / High school — exploring CCS programs and universities',
+    desc: 'Pre-college / High school — exploring CCS programs and career paths',
     emoji: '🎓',
   },
   {
     value: 'undergraduate',
-    label: 'Undergraduate Student',
-    desc: 'Currently enrolled in a CCS program — need career guidance',
+    label: 'Undergraduate / Shifter',
+    desc: 'Enrolled in CCS or shifting to CCS — get a skill roadmap, certifications, and job matches',
     emoji: '💻',
   },
   {
     value: 'mentor',
     label: 'Mentor',
-    desc: 'IT professional or professor — willing to guide students',
+    desc: 'IT professional or professor — guide the next generation of CCS students',
     emoji: '🧑‍💼',
   },
 ]

@@ -152,7 +152,7 @@ export default function ProfilePage() {
           <div className="card mb-4">
             <h3 className="font-bold text-brand-black mb-1">Current Skills</h3>
             <p className="text-brand-gray-mid text-xs mb-4">
-              {editing ? 'I-click ang mga skills na alam mo na.' : 'Mag-edit para mag-update ng skills.'}
+              {editing ? 'Click the skills you already know.' : 'Edit your profile to update your skills.'}
             </p>
             <div className="flex flex-wrap gap-2">
               {SKILL_OPTIONS.map((skill) => (

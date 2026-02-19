@@ -30,9 +30,9 @@ export default function RoadmapPage() {
     return (
       <div className="flex flex-col items-center justify-center h-96 text-center">
         <div className="text-6xl mb-4">🗺️</div>
-        <h2 className="text-2xl font-bold text-brand-black mb-2">Wala pang Roadmap</h2>
+        <h2 className="text-2xl font-bold text-brand-black mb-2">No Roadmap Yet</h2>
         <p className="text-brand-gray-mid mb-6 max-w-md">
-          I-complete muna ang onboarding quiz para ma-generate ang iyong personalized learning roadmap.
+          Complete the onboarding quiz first to generate your personalized learning roadmap.
         </p>
         <button
           onClick={generateRoadmap}
@@ -41,7 +41,7 @@ export default function RoadmapPage() {
                      hover:bg-brand-yellow-dark active:scale-95 transition-all
                      disabled:opacity-50"
         >
-          {isGenerating ? 'Gumagawa...' : 'Generate My Roadmap'}
+          {isGenerating ? 'Generating...' : 'Generate My Roadmap'}
         </button>
       </div>
     )
