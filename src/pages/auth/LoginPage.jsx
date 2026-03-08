@@ -25,11 +25,17 @@ export default function LoginPage() {
     formState: { errors },
   } = useForm({ resolver: zodResolver(schema) })
 
+  const getPostLoginRoute = (user) => {
+    if (!user?.role) return '/auth/google-setup'   // exited role setup early
+    if (user.isOnboarded) return '/app/dashboard'
+    return '/onboarding'
+  }
+
   const onSubmit = async (data) => {
     const result = await login(data.email, data.password)
     if (result.success) {
       const { user } = useAuthStore.getState()
-      navigate(user?.isOnboarded ? '/app/dashboard' : '/onboarding', { replace: true })
+      navigate(getPostLoginRoute(user), { replace: true })
     }
   }
 
@@ -40,7 +46,7 @@ export default function LoginPage() {
         navigate('/auth/google-setup', { replace: true })
       } else {
         const { user } = useAuthStore.getState()
-        navigate(user?.isOnboarded ? '/app/dashboard' : '/onboarding', { replace: true })
+        navigate(getPostLoginRoute(user), { replace: true })
       }
     }
   }

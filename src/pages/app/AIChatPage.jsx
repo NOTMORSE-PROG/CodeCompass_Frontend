@@ -16,18 +16,19 @@ const SUGGESTED_PROMPTS = [
 
 export default function AIChatPage() {
   const { user } = useAuthStore()
-  const { currentSession, messages, streamingContent, isStreaming, createSession, selectSession, sendMessage } = useChatStore()
+  const { messages, streamingContent, isStreaming, createSession, selectSession, sendMessage, disconnectWebSocket } = useChatStore()
   const [input, setInput] = useState('')
   const messagesEndRef = useRef(null)
 
   useEffect(() => {
-    // Create a new session if none exists
-    if (!currentSession) {
-      createSession('general').then((session) => {
-        if (session) selectSession(session.sessionId)
-      })
-    }
-  }, [currentSession, createSession, selectSession])
+    // Always start a fresh general session when entering the AI chat page.
+    // We can't reuse whatever currentSession is (may be an onboarding session).
+    createSession('general').then((session) => {
+      if (session) selectSession(session.sessionId)
+    })
+    // Cleanup: drop the WS when leaving the page
+    return () => { disconnectWebSocket() }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -116,8 +117,18 @@ export default function AIChatPage() {
               <span className="text-brand-black font-bold text-xs">AI</span>
             </div>
             <div className="max-w-[75%] px-4 py-3 rounded-2xl rounded-bl-sm bg-gray-100 text-brand-black text-sm leading-relaxed">
-              {streamingContent}
-              <span className="inline-block w-1.5 h-4 bg-brand-yellow ml-0.5 animate-pulse" />
+              {streamingContent ? (
+                <>
+                  {streamingContent}
+                  <span className="inline-block w-1.5 h-4 bg-brand-yellow ml-0.5 animate-pulse align-middle" />
+                </>
+              ) : (
+                <span className="flex items-center gap-1 h-4">
+                  <span className="w-2 h-2 rounded-full bg-brand-yellow animate-bounce [animation-delay:0ms]" />
+                  <span className="w-2 h-2 rounded-full bg-brand-yellow animate-bounce [animation-delay:150ms]" />
+                  <span className="w-2 h-2 rounded-full bg-brand-yellow animate-bounce [animation-delay:300ms]" />
+                </span>
+              )}
             </div>
           </div>
         )}

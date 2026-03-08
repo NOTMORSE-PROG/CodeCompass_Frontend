@@ -4,6 +4,7 @@
  * Auto-refreshes token on 401 and retries the original request.
  */
 import axios from 'axios'
+import { decodeAndUpdateUser } from '../stores/authStore'
 
 const API_BASE = import.meta.env.VITE_API_URL || ''
 
@@ -41,6 +42,15 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
 
+    // Refresh succeeded but the retried request still gets 401 — account no longer valid.
+    // Force a clean logout so the user sees the login page immediately.
+    if (error.response?.status === 401 && originalRequest._retry) {
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      window.location.href = '/auth/login'
+      return Promise.reject(error)
+    }
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
@@ -70,6 +80,7 @@ apiClient.interceptors.response.use(
         })
         localStorage.setItem('access_token', data.access)
         apiClient.defaults.headers.Authorization = `Bearer ${data.access}`
+        decodeAndUpdateUser(data.access)   // keep Zustand store in sync
         processQueue(null, data.access)
         originalRequest.headers.Authorization = `Bearer ${data.access}`
         return apiClient(originalRequest)

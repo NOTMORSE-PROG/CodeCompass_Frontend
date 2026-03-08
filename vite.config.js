@@ -5,6 +5,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    // Required for Google Sign-In popup to communicate via postMessage
+    headers: {
+      'Cross-Origin-Opener-Policy': 'unsafe-none',
+    },
     // Proxy API and WebSocket requests to Django backend during development
     proxy: {
       '/api': {

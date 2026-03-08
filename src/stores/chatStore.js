@@ -10,6 +10,7 @@ const useChatStore = create((set, get) => ({
   messages: [],
   streamingContent: '',  // Buffer for incoming AI stream chunks
   isStreaming: false,
+  suggestions: [],       // Quick-reply chips for onboarding
   ws: null,
 
   fetchSessions: async () => {
@@ -47,12 +48,13 @@ const useChatStore = create((set, get) => ({
       get()._connectWebSocket(currentSession?.sessionId)
       return
     }
-    // Add user message optimistically
+    // Add user message optimistically; clear any pending suggestions
     const userMsg = { role: 'user', content, createdAt: new Date().toISOString() }
     set((state) => ({
       messages: [...state.messages, userMsg],
       streamingContent: '',
       isStreaming: true,
+      suggestions: [],
     }))
     ws.send(JSON.stringify({ message: content }))
   },
@@ -71,14 +73,19 @@ const useChatStore = create((set, get) => ({
 
     const ws = createChatWebSocket(sessionId, {
       onChunk: (chunk) => {
-        set((state) => ({ streamingContent: state.streamingContent + chunk }))
+        set((state) => ({
+          streamingContent: state.streamingContent + chunk,
+          isStreaming: true,  // handles server-initiated streams (e.g., greeting)
+        }))
       },
-      onEnd: ({ messageId }) => {
+      onEnd: ({ message_id, clean_content }) => {
         set((state) => {
+          // Use clean_content from backend (suggestions tag stripped) if available
+          const content = clean_content ?? state.streamingContent
           const assistantMsg = {
-            id: messageId,
+            id: message_id,
             role: 'assistant',
-            content: state.streamingContent,
+            content,
             createdAt: new Date().toISOString(),
           }
           return {
@@ -88,8 +95,11 @@ const useChatStore = create((set, get) => ({
           }
         })
       },
+      onSuggestions: (opts) => {
+        set({ suggestions: opts })
+      },
       onError: () => {
-        set({ isStreaming: false, streamingContent: '' })
+        set({ isStreaming: false, streamingContent: '', suggestions: [] })
       },
     })
 

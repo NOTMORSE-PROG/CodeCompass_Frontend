@@ -1,6 +1,4 @@
-import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import useAuthStore from './stores/authStore'
 
 // Layouts
 import AuthLayout from './components/layout/AuthLayout'
@@ -34,15 +32,9 @@ import ProtectedRoute from './components/layout/ProtectedRoute'
 import RoleGuard from './components/layout/RoleGuard'
 
 export default function App() {
-  const { hydrate } = useAuthStore()
-
-  useEffect(() => {
-    // Restore user session from stored tokens on app load
-    hydrate()
-  }, [hydrate])
-
+  // User state is initialized synchronously in authStore — no useEffect needed
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
       <Routes>
         {/* Public auth routes */}
         <Route element={<AuthLayout />}>
@@ -55,15 +47,15 @@ export default function App() {
           <Route path="/auth/google-setup" element={<GoogleSetupPage />} />
         </Route>
 
-        {/* Onboarding — authenticated but not onboarded */}
-        <Route element={<ProtectedRoute />}>
+        {/* Onboarding — authenticated + role set but not yet onboarded */}
+        <Route element={<ProtectedRoute requireRole />}>
           <Route element={<OnboardingLayout />}>
             <Route path="/onboarding" element={<OnboardingPage />} />
           </Route>
         </Route>
 
-        {/* Main app — authenticated + onboarded */}
-        <Route element={<ProtectedRoute requireOnboarded />}>
+        {/* Main app — authenticated + role set + onboarded */}
+        <Route element={<ProtectedRoute requireRole requireOnboarded />}>
           <Route element={<AppLayout />}>
             <Route path="/app/dashboard" element={<DashboardPage />} />
             <Route path="/app/roadmap" element={<RoadmapPage />} />

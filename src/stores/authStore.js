@@ -1,40 +1,36 @@
 /**
  * Auth store — manages user session, tokens, and role.
  * Tokens are stored in localStorage; role is decoded from JWT (no extra API call).
+ * User state is initialized SYNCHRONOUSLY at module load to prevent flash redirects.
  */
 import { create } from 'zustand'
 import { authApi, decodeToken } from '../api/auth'
 import toast from 'react-hot-toast'
 
+/** Decode a token and return a user object, or null if invalid/expired. */
+const _userFromToken = (token) => {
+  if (!token) return null
+  const payload = decodeToken(token)
+  if (!payload || payload.exp * 1000 <= Date.now()) {
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
+    return null
+  }
+  return {
+    id: payload.user_id,
+    email: payload.email,
+    fullName: payload.full_name || '',
+    role: payload.role || null,
+    isOnboarded: payload.is_onboarded ?? false,
+  }
+}
+
 const useAuthStore = create((set, get) => ({
-  user: null,
+  // Synchronous init — no flash on page load
+  user: _userFromToken(localStorage.getItem('access_token')),
   accessToken: localStorage.getItem('access_token') || null,
   refreshToken: localStorage.getItem('refresh_token') || null,
   isLoading: false,
-
-  /** Hydrate user from stored token on page load. */
-  hydrate: () => {
-    const token = localStorage.getItem('access_token')
-    if (token) {
-      const payload = decodeToken(token)
-      if (payload && payload.exp * 1000 > Date.now()) {
-        set({
-          accessToken: token,
-          refreshToken: localStorage.getItem('refresh_token'),
-          user: {
-            id: payload.user_id,
-            email: payload.email,
-            fullName: payload.full_name,
-            role: payload.role,
-            isOnboarded: payload.is_onboarded,
-          },
-        })
-      } else {
-        // Token expired — clear
-        get().logout()
-      }
-    }
-  },
 
   /** Register a new account. */
   register: async (formData) => {
@@ -42,7 +38,7 @@ const useAuthStore = create((set, get) => ({
     try {
       const { data } = await authApi.register(formData)
       get()._saveSession(data)
-      toast.success(`Welcome to CodeCompass, ${data.user.first_name}!`)
+      toast.success(`Welcome to CodeCompass, ${data.user.firstName}!`)
       return { success: true, user: data.user }
     } catch (error) {
       const msg = error.response?.data?.detail
@@ -101,7 +97,7 @@ const useAuthStore = create((set, get) => ({
       const { data } = await authApi.googleAuth(credential)
       get()._saveSession(data)
       if (!data.isNewUser) {
-        toast.success(`Welcome back, ${data.user.firstName || data.user.first_name}!`)
+        toast.success(`Welcome back, ${data.user.firstName}!`)
       }
       return { success: true, isNewUser: data.isNewUser }
     } catch (error) {
@@ -141,12 +137,29 @@ const useAuthStore = create((set, get) => ({
       user: {
         id: payload?.user_id || user?.id,
         email: payload?.email || user?.email,
-        fullName: payload?.full_name || `${user?.first_name} ${user?.last_name}`,
-        role: payload?.role || user?.role,
-        isOnboarded: payload?.is_onboarded ?? user?.is_onboarded ?? false,
+        fullName: payload?.full_name || (user?.firstName ? `${user.firstName} ${user.lastName}`.trim() : ''),
+        role: payload?.role || null,
+        isOnboarded: payload?.is_onboarded ?? user?.isOnboarded ?? false,
       },
     })
   },
 }))
+
+/**
+ * Called by client.js after a silent token refresh so Zustand stays in sync
+ * with the new token's claims without requiring a page reload.
+ */
+export const decodeAndUpdateUser = (accessToken) => {
+  const payload = decodeToken(accessToken)
+  if (!payload) return
+  useAuthStore.setState((state) => ({
+    accessToken,
+    user: state.user ? {
+      ...state.user,
+      role: payload.role ?? state.user.role,
+      isOnboarded: payload.is_onboarded ?? state.user.isOnboarded,
+    } : null,
+  }))
+}
 
 export default useAuthStore

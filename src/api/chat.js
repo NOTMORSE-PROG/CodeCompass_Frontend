@@ -1,4 +1,5 @@
 import apiClient from './client'
+import useAuthStore from '../stores/authStore'
 
 export const chatApi = {
   listSessions: () => apiClient.get('/chat/sessions/'),
@@ -12,9 +13,12 @@ export const chatApi = {
  * Create a WebSocket connection for AI chat streaming.
  * Returns the WebSocket instance.
  */
-export function createChatWebSocket(sessionId, { onChunk, onEnd, onError }) {
+export function createChatWebSocket(sessionId, { onChunk, onEnd, onError, onSuggestions }) {
   const WS_BASE = import.meta.env.VITE_WS_URL || ''
-  const wsUrl = `${WS_BASE}/ws/chat/${sessionId}/`
+  // Pass JWT access token as query param for WebSocket authentication
+  const { accessToken } = useAuthStore.getState()
+  const tokenParam = accessToken ? `?token=${accessToken}` : ''
+  const wsUrl = `${WS_BASE}/ws/chat/${sessionId}/${tokenParam}`
   const ws = new WebSocket(wsUrl)
 
   ws.onopen = () => {
@@ -28,15 +32,20 @@ export function createChatWebSocket(sessionId, { onChunk, onEnd, onError }) {
         onChunk?.(data.content)
       } else if (data.type === 'stream_end') {
         onEnd?.(data)
+        if (data.suggestions?.length) {
+          onSuggestions?.(data.suggestions)
+        }
       } else if (data.type === 'stream_error') {
         onError?.(data.error)
+      } else {
+        console.warn('[WS] Unknown message type:', data.type)
       }
     } catch (e) {
       console.error('[WS] Parse error', e)
     }
   }
 
-  ws.onerror = (err) => {
+  ws.onerror = (_err) => {
     onError?.('WebSocket connection error')
   }
 

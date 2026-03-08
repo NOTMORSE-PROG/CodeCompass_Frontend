@@ -5,7 +5,7 @@ import { create } from 'zustand'
 import { roadmapApi } from '../api/roadmaps'
 import toast from 'react-hot-toast'
 
-const useRoadmapStore = create((set, get) => ({
+const useRoadmapStore = create((set) => ({
   roadmaps: [],
   currentRoadmap: null,
   isLoading: false,

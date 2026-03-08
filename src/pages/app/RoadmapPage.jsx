@@ -2,7 +2,7 @@
  * Roadmap page — React Flow canvas with TIP yellow/black themed nodes.
  * Phase 2 will add full AI-generated content.
  */
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import useRoadmapStore from '../../stores/roadmapStore'
 
 export default function RoadmapPage() {

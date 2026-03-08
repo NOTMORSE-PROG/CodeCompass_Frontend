@@ -10,22 +10,14 @@ import useAuthStore from '../../stores/authStore'
 
 const ROLES = [
   {
-    value: 'incoming_student',
-    label: 'Incoming Student',
-    desc: 'Pre-college / High school — exploring CCS programs and career paths',
-    emoji: '🎓',
-  },
-  {
     value: 'undergraduate',
-    label: 'Undergraduate / Shifter',
-    desc: 'Enrolled in CCS or shifting to CCS — get a skill roadmap, certifications, and job matches',
-    emoji: '💻',
+    label: 'Student',
+    desc: 'Get a personalized skill roadmap, certifications, and job matches',
   },
   {
     value: 'mentor',
     label: 'Mentor',
     desc: 'IT professional or professor — guide the next generation of CCS students',
-    emoji: '🧑‍💼',
   },
 ]
 
@@ -36,9 +28,9 @@ export default function GoogleSetupPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (user?.isOnboarded) {
-      navigate('/app/dashboard', { replace: true })
-    }
+    if (!user) return
+    if (user.isOnboarded) navigate('/app/dashboard', { replace: true })
+    else if (user.role) navigate('/onboarding', { replace: true })
   }, [user, navigate])
 
   const handleSubmit = async (e) => {
@@ -50,7 +42,7 @@ export default function GoogleSetupPage() {
     setError('')
     const result = await setRole(selectedRole)
     if (result.success) {
-      navigate('/onboarding', { replace: true })
+      navigate(selectedRole === 'mentor' ? '/app/dashboard' : '/onboarding', { replace: true })
     }
   }
 
@@ -76,20 +68,19 @@ export default function GoogleSetupPage() {
         {/* Google avatar / greeting */}
         <div className="text-center mb-6">
           <div className="w-14 h-14 bg-brand-yellow rounded-full flex items-center justify-center mx-auto mb-3 text-2xl font-bold text-brand-black">
-            {user?.fullName?.charAt(0)?.toUpperCase() || '?'}
+            {user?.email?.charAt(0)?.toUpperCase() || '?'}
           </div>
           <h2 className="text-xl font-bold text-brand-black">
-            Welcome, {user?.fullName?.split(' ')[0] || 'there'}!
+            Welcome{user?.fullName ? `, ${user.fullName.split(' ')[0]}` : ''}!
           </h2>
           <p className="text-gray-500 text-sm mt-1">
-            Signed in with Google as{' '}
-            <span className="text-brand-black font-medium">{user?.email}</span>
+            {user?.email ? <>Signed in as <span className="text-brand-black font-medium">{user.email}</span></> : 'Complete your setup below'}
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-3">
           <p className="text-sm font-medium text-gray-700 mb-3">
-            Who are you on CodeCompass? (Pick your role)
+            How are you using CodeCompass?
           </p>
 
           {ROLES.map((role) => (
@@ -103,14 +94,17 @@ export default function GoogleSetupPage() {
                   : 'border-gray-200 bg-white text-gray-700 hover:border-brand-yellow/50 hover:bg-yellow-50'
               }`}
             >
-              <div className="flex items-center gap-3">
-                <span className="text-xl">{role.emoji}</span>
+              <div className="flex items-center justify-between">
                 <div>
                   <p className="font-semibold text-sm">{role.label}</p>
                   <p className="text-xs text-gray-500">{role.desc}</p>
                 </div>
                 {selectedRole === role.value && (
-                  <span className="ml-auto text-brand-yellow font-bold text-lg">✓</span>
+                  <div className="w-4 h-4 rounded-full bg-brand-yellow flex items-center justify-center flex-shrink-0 ml-3">
+                    <svg className="w-2.5 h-2.5 text-brand-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
                 )}
               </div>
             </button>
@@ -125,7 +119,7 @@ export default function GoogleSetupPage() {
                        hover:bg-brand-yellow-dark active:scale-95 transition-all mt-2
                        disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isLoading ? 'Setting up...' : 'Continue to Onboarding'}
+            {isLoading ? 'Setting up...' : selectedRole === 'mentor' ? 'Continue to Dashboard' : 'Continue to Onboarding'}
           </button>
         </form>
       </div>

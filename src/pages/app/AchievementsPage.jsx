@@ -1,57 +1,62 @@
-/**
- * Achievements page — XP bar, streak calendar, badge showcase, leaderboard.
- * Full gamification engine in Phase 7.
- */
+import { useEffect } from 'react'
 import { BoltIcon, FireIcon, TrophyIcon } from '@heroicons/react/24/solid'
 import { LockClosedIcon } from '@heroicons/react/24/outline'
+import useGamificationStore from '../../stores/gamificationStore'
 
-const BADGES = [
-  { slug: 'pioneer', label: 'Pioneer', emoji: '🚀', description: 'First to join CodeCompass', earned: true },
-  { slug: 'roadmap-ready', label: 'Roadmap Ready', emoji: '🗺️', description: 'Generated your first roadmap', earned: false },
-  { slug: 'first-step', label: 'First Step', emoji: '👣', description: 'Completed your first roadmap node', earned: false },
-  { slug: 'curious', label: 'Curious', emoji: '🔍', description: 'Asked 10 questions to CodeCompass AI', earned: false },
-  { slug: 'connected', label: 'Connected', emoji: '🤝', description: 'Sent your first mentor request', earned: false },
-  { slug: 'week-warrior', label: 'Week Warrior', emoji: '🔥', description: 'Maintained a 7-day streak', earned: false },
-  { slug: 'month-master', label: 'Month Master', emoji: '📅', description: 'Maintained a 30-day streak', earned: false },
-  { slug: 'skill-builder', label: 'Skill Builder', emoji: '⚙️', description: 'Completed 5 roadmap nodes', earned: false },
-  { slug: 'halfway-there', label: 'Halfway There', emoji: '⚡', description: 'Reached 50% roadmap completion', earned: false },
-  { slug: 'roadmap-complete', label: 'Roadmap Complete', emoji: '🏆', description: 'Completed your full roadmap', earned: false },
-  { slug: 'google-scholar', label: 'Google Scholar', emoji: '🎓', description: 'Earned a Google certification', earned: false },
-  { slug: 'aws-cadet', label: 'AWS Cloud Cadet', emoji: '☁️', description: 'Earned an AWS certification', earned: false },
-  { slug: 'profile-complete', label: 'Profile Complete', emoji: '✅', description: 'Filled out your full profile', earned: false },
-  { slug: 'social-butterfly', label: 'Social Butterfly', emoji: '🦋', description: 'Connected with 3 mentors', earned: false },
-  { slug: 'top-learner', label: 'Top Learner', emoji: '🥇', description: 'Reached top 10 on the leaderboard', earned: false },
-]
+// XP needed per level (every 500 XP = 1 level)
+const XP_PER_LEVEL = 500
 
-const LEADERBOARD = [
-  { rank: 1, name: 'Ana Reyes', xp: 3420, streak: 21 },
-  { rank: 2, name: 'Marco Santos', xp: 2890, streak: 14 },
-  { rank: 3, name: 'Liza Cruz', xp: 2640, streak: 9 },
-  { rank: 4, name: 'Paolo Bautista', xp: 2100, streak: 7 },
-  { rank: 5, name: 'Carla Ramos', xp: 1850, streak: 5 },
-]
+function getLevel(xp) {
+  return Math.floor(xp / XP_PER_LEVEL) + 1
+}
+function getXPInLevel(xp) {
+  return xp % XP_PER_LEVEL
+}
 
-function BadgeCard({ badge }) {
+function BadgeCard({ badge, earned }) {
   return (
     <div className={`p-4 rounded-xl border-2 text-center transition-all ${
-      badge.earned
-        ? 'border-brand-yellow bg-brand-yellow-pale'
-        : 'border-gray-200 bg-gray-50 opacity-50'
+      earned ? 'border-brand-yellow bg-brand-yellow-pale' : 'border-gray-200 bg-gray-50 opacity-50'
     }`}>
-      <div className="text-3xl mb-2">{badge.emoji}</div>
-      <div className={`font-bold text-sm mb-1 ${badge.earned ? 'text-brand-black' : 'text-brand-gray-mid'}`}>
-        {badge.label}
+      <div className="text-3xl mb-2">{badge.iconName || '🏅'}</div>
+      <div className={`font-bold text-sm mb-1 ${earned ? 'text-brand-black' : 'text-brand-gray-mid'}`}>
+        {badge.name}
       </div>
       <div className="text-xs text-brand-gray-mid leading-snug">{badge.description}</div>
-      {!badge.earned && (
-        <LockClosedIcon className="w-4 h-4 text-gray-300 mx-auto mt-2" />
-      )}
+      {!earned && <LockClosedIcon className="w-4 h-4 text-gray-300 mx-auto mt-2" />}
     </div>
   )
 }
 
+const PERIOD_LABELS = { weekly: 'This Week', monthly: 'This Month', all_time: 'All Time' }
+
 export default function AchievementsPage() {
-  const earnedCount = BADGES.filter((b) => b.earned).length
+  const {
+    profile,
+    allBadges,
+    earnedBadges,
+    leaderboard,
+    leaderboardPeriod,
+    isLoading,
+    fetchProfile,
+    fetchAllBadges,
+    fetchEarnedBadges,
+    fetchLeaderboard,
+  } = useGamificationStore()
+
+  useEffect(() => {
+    fetchProfile()
+    fetchAllBadges()
+    fetchEarnedBadges()
+    fetchLeaderboard('weekly')
+  }, [fetchProfile, fetchAllBadges, fetchEarnedBadges, fetchLeaderboard])
+
+  const xpTotal = profile?.xpTotal ?? 0
+  const streakCount = profile?.streakCount ?? 0
+  const earnedBadgeSlugs = new Set(earnedBadges.map((ub) => ub.badge?.slug || ub.badge))
+  const level = getLevel(xpTotal)
+  const xpInLevel = getXPInLevel(xpTotal)
+  const xpPct = Math.round((xpInLevel / XP_PER_LEVEL) * 100)
 
   return (
     <div>
@@ -62,19 +67,8 @@ export default function AchievementsPage() {
         </p>
       </div>
 
-      {/* Coming soon notice */}
-      <div className="bg-brand-yellow-pale border border-brand-yellow/30 rounded-xl p-4 mb-6 flex items-center gap-3">
-        <span className="text-xl">🎮</span>
-        <div>
-          <p className="font-semibold text-brand-black text-sm">Full Gamification Coming in Phase 7</p>
-          <p className="text-brand-gray-mid text-xs mt-0.5">
-            Live XP tracking, streak detection, badge unlocks with toast notifications, and weekly leaderboard.
-          </p>
-        </div>
-      </div>
-
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left: XP + Streak */}
+        {/* Left: XP + Streak + Badges */}
         <div className="lg:col-span-2 space-y-4">
           {/* XP Card */}
           <div className="card">
@@ -84,17 +78,22 @@ export default function AchievementsPage() {
             </h2>
             <div className="flex items-end gap-4 mb-4">
               <div>
-                <div className="text-5xl font-black text-brand-yellow">0</div>
+                <div className="text-5xl font-black text-brand-yellow">{xpTotal.toLocaleString()}</div>
                 <div className="text-brand-gray-mid text-sm">Total XP</div>
               </div>
-              <div className="text-brand-gray-mid text-sm pb-1">→ Next level at 500 XP</div>
+              <div className="text-brand-gray-mid text-sm pb-1">
+                Level {level} → Next level at {(level * XP_PER_LEVEL).toLocaleString()} XP
+              </div>
             </div>
             <div className="w-full bg-gray-100 rounded-full h-3">
-              <div className="bg-brand-yellow h-3 rounded-full transition-all" style={{ width: '0%' }} />
+              <div
+                className="bg-brand-yellow h-3 rounded-full transition-all"
+                style={{ width: `${xpPct}%` }}
+              />
             </div>
             <div className="flex justify-between text-xs text-brand-gray-mid mt-1">
-              <span>Level 1</span>
-              <span>0 / 500 XP</span>
+              <span>Level {level}</span>
+              <span>{xpInLevel} / {XP_PER_LEVEL} XP</span>
             </div>
           </div>
 
@@ -106,14 +105,15 @@ export default function AchievementsPage() {
             </h2>
             <div className="flex items-center gap-6">
               <div>
-                <div className="text-5xl font-black text-orange-500">0</div>
+                <div className="text-5xl font-black text-orange-500">{streakCount}</div>
                 <div className="text-brand-gray-mid text-sm">day streak</div>
               </div>
               <div className="flex-1">
                 <p className="text-sm text-brand-gray-mid mb-1">
-                  Log in and learn every day to keep your streak going!
+                  {streakCount > 0
+                    ? `Great job! Keep logging in every day to maintain your streak.`
+                    : 'Log in and learn every day to keep your streak going!'}
                 </p>
-                <p className="text-xs text-brand-gray-mid">Best streak: 0 days</p>
               </div>
             </div>
           </div>
@@ -126,53 +126,87 @@ export default function AchievementsPage() {
                 Badges
               </span>
               <span className="text-sm text-brand-gray-mid font-normal">
-                {earnedCount} / {BADGES.length} earned
+                {earnedBadges.length} / {allBadges.length} earned
               </span>
             </h2>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-              {BADGES.map((badge) => (
-                <BadgeCard key={badge.slug} badge={badge} />
-              ))}
-            </div>
+            {allBadges.length === 0 ? (
+              <p className="text-brand-gray-mid text-sm text-center py-8">Loading badges...</p>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
+                {allBadges.map((badge) => (
+                  <BadgeCard
+                    key={badge.id}
+                    badge={badge}
+                    earned={earnedBadgeSlugs.has(badge.slug)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Right: Leaderboard */}
         <div className="card h-fit">
-          <h2 className="font-bold text-brand-black mb-4 flex items-center gap-2">
+          <h2 className="font-bold text-brand-black mb-3 flex items-center gap-2">
             <TrophyIcon className="w-5 h-5 text-brand-yellow" />
-            Weekly Leaderboard
+            Leaderboard
           </h2>
-          <div className="space-y-3">
-            {LEADERBOARD.map((entry) => (
-              <div
-                key={entry.rank}
-                className={`flex items-center gap-3 p-2.5 rounded-lg ${
-                  entry.rank === 1 ? 'bg-brand-yellow-pale border border-brand-yellow/30' : 'bg-gray-50'
+
+          {/* Period selector */}
+          <div className="flex gap-1.5 mb-4">
+            {Object.entries(PERIOD_LABELS).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => fetchLeaderboard(key)}
+                className={`flex-1 py-1 rounded-lg text-xs font-medium transition-all ${
+                  leaderboardPeriod === key
+                    ? 'bg-brand-yellow text-brand-black'
+                    : 'bg-gray-100 text-brand-gray-mid hover:bg-gray-200'
                 }`}
               >
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0 ${
-                  entry.rank === 1 ? 'bg-brand-yellow text-brand-black' :
-                  entry.rank === 2 ? 'bg-gray-300 text-white' :
-                  entry.rank === 3 ? 'bg-orange-300 text-white' :
-                  'bg-gray-100 text-brand-gray-mid'
-                }`}>
-                  {entry.rank}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-brand-black text-sm truncate">{entry.name}</div>
-                  <div className="text-xs text-brand-gray-mid">{entry.xp.toLocaleString()} XP</div>
-                </div>
-                <div className="text-xs text-orange-500 flex items-center gap-0.5">
-                  <FireIcon className="w-3.5 h-3.5" />
-                  {entry.streak}
-                </div>
-              </div>
+                {label}
+              </button>
             ))}
           </div>
+
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="w-6 h-6 border-2 border-brand-yellow border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : leaderboard.length === 0 ? (
+            <p className="text-brand-gray-mid text-sm text-center py-6">
+              No leaderboard data yet. Start earning XP!
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {leaderboard.map((entry) => (
+                <div
+                  key={entry.rank}
+                  className={`flex items-center gap-3 p-2.5 rounded-lg ${
+                    entry.rank === 1 ? 'bg-brand-yellow-pale border border-brand-yellow/30' : 'bg-gray-50'
+                  }`}
+                >
+                  <div className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0 ${
+                    entry.rank === 1 ? 'bg-brand-yellow text-brand-black' :
+                    entry.rank === 2 ? 'bg-gray-300 text-white' :
+                    entry.rank === 3 ? 'bg-orange-300 text-white' :
+                    'bg-gray-100 text-brand-gray-mid'
+                  }`}>
+                    {entry.rank}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-semibold text-brand-black text-sm truncate">
+                      {entry.user?.fullName || entry.user?.firstName || `User #${entry.rank}`}
+                    </div>
+                    <div className="text-xs text-brand-gray-mid">{entry.xpEarned?.toLocaleString()} XP</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="mt-4 pt-3 border-t border-gray-100 text-center">
-            <p className="text-xs text-brand-gray-mid">You're not in the top 10 yet.</p>
-            <p className="text-xs text-brand-yellow font-medium mt-0.5">Earn XP to climb the leaderboard!</p>
+            <p className="text-xs text-brand-yellow font-medium">Complete nodes to earn XP and climb the board!</p>
           </div>
         </div>
       </div>
