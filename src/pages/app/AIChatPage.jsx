@@ -19,8 +19,13 @@ export default function AIChatPage() {
   const { messages, streamingContent, isStreaming, createSession, selectSession, sendMessage, disconnectWebSocket } = useChatStore()
   const [input, setInput] = useState('')
   const messagesEndRef = useRef(null)
+  const initialized = useRef(false)
 
   useEffect(() => {
+    // Guard against React StrictMode double-invoke creating two sessions
+    if (initialized.current) return
+    initialized.current = true
+
     // Always start a fresh general session when entering the AI chat page.
     // We can't reuse whatever currentSession is (may be an onboarding session).
     createSession('general').then((session) => {

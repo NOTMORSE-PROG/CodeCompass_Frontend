@@ -5,7 +5,7 @@ import { create } from 'zustand'
 import { roadmapApi } from '../api/roadmaps'
 import toast from 'react-hot-toast'
 
-const useRoadmapStore = create((set) => ({
+const useRoadmapStore = create((set, get) => ({
   roadmaps: [],
   currentRoadmap: null,
   isLoading: false,
@@ -56,24 +56,32 @@ const useRoadmapStore = create((set) => ({
     }
   },
 
-  updateNodeStatus: async (roadmapId, nodeId, status) => {
+  updateNodeStatus: async (roadmapId, nodeId, newStatus) => {
     try {
-      const { data } = await roadmapApi.updateNodeStatus(roadmapId, nodeId, status)
-      // Update node in current roadmap
-      set((state) => {
-        if (!state.currentRoadmap) return state
-        const updatedNodes = state.currentRoadmap.nodes.map((n) =>
-          n.id === nodeId ? { ...n, status: data.status, completedAt: data.completedAt } : n
-        )
-        return {
-          currentRoadmap: {
-            ...state.currentRoadmap,
-            nodes: updatedNodes,
-          },
-        }
-      })
-      if (status === 'completed') {
-        toast.success(`+${data.xpReward} XP! Node completed!`)
+      const { data } = await roadmapApi.updateNodeStatus(roadmapId, nodeId, newStatus)
+      // data = { node, completionPercentage }
+      const updatedNode = data.node
+
+      if (newStatus === 'completed') {
+        // Re-fetch full roadmap to sync unlocked nodes
+        toast.success(`+${updatedNode.xpReward} XP! Node completed!`)
+        get().fetchRoadmap(roadmapId)
+      } else {
+        // Optimistic update for in_progress
+        set((state) => {
+          if (!state.currentRoadmap) return state
+          return {
+            currentRoadmap: {
+              ...state.currentRoadmap,
+              completionPercentage: data.completionPercentage,
+              nodes: state.currentRoadmap.nodes.map((n) =>
+                n.id === nodeId
+                  ? { ...n, status: updatedNode.status, completedAt: updatedNode.completedAt }
+                  : n
+              ),
+            },
+          }
+        })
       }
       return data
     } catch {
