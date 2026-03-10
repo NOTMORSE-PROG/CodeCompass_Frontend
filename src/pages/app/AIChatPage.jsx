@@ -11,8 +11,33 @@ import {
   TrashIcon,
 } from '@heroicons/react/24/solid'
 import ReactMarkdown from 'react-markdown'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
+// Register only the languages the AI assistant realistically outputs
+import python from 'react-syntax-highlighter/dist/esm/languages/prism/python'
+import javascript from 'react-syntax-highlighter/dist/esm/languages/prism/javascript'
+import jsx from 'react-syntax-highlighter/dist/esm/languages/prism/jsx'
+import typescript from 'react-syntax-highlighter/dist/esm/languages/prism/typescript'
+import tsx from 'react-syntax-highlighter/dist/esm/languages/prism/tsx'
+import bash from 'react-syntax-highlighter/dist/esm/languages/prism/bash'
+import json from 'react-syntax-highlighter/dist/esm/languages/prism/json'
+import sql from 'react-syntax-highlighter/dist/esm/languages/prism/sql'
+import css from 'react-syntax-highlighter/dist/esm/languages/prism/css'
+import java from 'react-syntax-highlighter/dist/esm/languages/prism/java'
+import csharp from 'react-syntax-highlighter/dist/esm/languages/prism/csharp'
+import cpp from 'react-syntax-highlighter/dist/esm/languages/prism/cpp'
+SyntaxHighlighter.registerLanguage('python', python)
+SyntaxHighlighter.registerLanguage('javascript', javascript)
+SyntaxHighlighter.registerLanguage('jsx', jsx)
+SyntaxHighlighter.registerLanguage('typescript', typescript)
+SyntaxHighlighter.registerLanguage('tsx', tsx)
+SyntaxHighlighter.registerLanguage('bash', bash)
+SyntaxHighlighter.registerLanguage('json', json)
+SyntaxHighlighter.registerLanguage('sql', sql)
+SyntaxHighlighter.registerLanguage('css', css)
+SyntaxHighlighter.registerLanguage('java', java)
+SyntaxHighlighter.registerLanguage('csharp', csharp)
+SyntaxHighlighter.registerLanguage('cpp', cpp)
 import useChatStore from '../../stores/chatStore'
 import useAuthStore from '../../stores/authStore'
 import useRoadmapStore from '../../stores/roadmapStore'
@@ -185,7 +210,7 @@ export default function AIChatPage() {
   } = useChatStore()
 
   const [input, setInput] = useState('')
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [activeMode, setActiveMode] = useState('general')
   const [deletingId, setDeletingId] = useState(null)
   const messagesEndRef = useRef(null)
