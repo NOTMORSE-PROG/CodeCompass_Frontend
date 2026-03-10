@@ -22,6 +22,19 @@ const useChatStore = create((set, get) => ({
     }
   },
 
+  deleteSession: async (sessionId) => {
+    try {
+      await chatApi.deleteSession(sessionId)
+      set((state) => ({
+        sessions: state.sessions.filter((s) => s.sessionId !== sessionId),
+        currentSession: state.currentSession?.sessionId === sessionId ? null : state.currentSession,
+        messages: state.currentSession?.sessionId === sessionId ? [] : state.messages,
+      }))
+    } catch {
+      /* silent */
+    }
+  },
+
   createSession: async (contextType = 'general') => {
     try {
       const { data } = await chatApi.createSession({ contextType })
