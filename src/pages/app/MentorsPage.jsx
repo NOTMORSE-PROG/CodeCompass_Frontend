@@ -168,14 +168,14 @@ export default function MentorsPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-brand-black">Find a Mentor</h1>
           <p className="text-brand-gray-mid text-sm mt-0.5">
             Kumonekta sa mga industry professionals at professors na makakatulong sa iyo.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {FILTER_TYPES.map((f) => (
             <button
               key={f}

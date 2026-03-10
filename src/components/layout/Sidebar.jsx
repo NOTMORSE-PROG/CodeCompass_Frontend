@@ -1,6 +1,7 @@
 /**
  * Sidebar navigation — white background with yellow accents and black text.
  * Nav items shown/hidden based on user role.
+ * Mobile: slide-in overlay drawer. Desktop (md+): always visible.
  */
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
@@ -14,6 +15,7 @@ import {
   TrophyIcon,
   UserCircleIcon,
   ArrowRightStartOnRectangleIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline'
 import useAuthStore from '../../stores/authStore'
 import toast from 'react-hot-toast'
@@ -30,7 +32,7 @@ const NAV_ITEMS = [
   { to: '/app/profile', label: 'Profile', icon: UserCircleIcon, roles: ['all'] },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ isOpen, onClose }) {
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
 
@@ -44,21 +46,31 @@ export default function Sidebar() {
     (item) => item.roles.includes('all') || item.roles.includes(user?.role)
   )
 
-  return (
+  const sidebarContent = (
     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col h-full flex-shrink-0">
-      {/* Logo */}
-      <div className="px-5 py-5 border-b border-gray-200">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-brand-yellow rounded-lg flex items-center justify-center flex-shrink-0">
-            <span className="text-brand-black font-black text-base">C</span>
+      {/* Logo + close button (mobile) */}
+      <div className="px-5 py-5 border-b border-gray-200 flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-brand-yellow rounded-lg flex items-center justify-center flex-shrink-0">
+              <span className="text-brand-black font-black text-base">C</span>
+            </div>
+            <span className="text-brand-black font-extrabold text-xl tracking-tight">
+              Code<span className="text-brand-yellow">Compass</span>
+            </span>
           </div>
-          <span className="text-brand-black font-extrabold text-xl tracking-tight">
-            Code<span className="text-brand-yellow">Compass</span>
-          </span>
+          <p className="text-gray-400 text-xs mt-1 ml-10 capitalize">
+            {user?.role?.replace(/_/g, ' ')}
+          </p>
         </div>
-        <p className="text-gray-400 text-xs mt-1 ml-10 capitalize">
-          {user?.role?.replace(/_/g, ' ')}
-        </p>
+        {/* Close button — mobile only */}
+        <button
+          onClick={onClose}
+          className="md:hidden p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500"
+          aria-label="Close menu"
+        >
+          <XMarkIcon className="w-5 h-5" />
+        </button>
       </div>
 
       {/* Nav links */}
@@ -67,6 +79,7 @@ export default function Sidebar() {
           <NavLink
             key={to}
             to={to}
+            onClick={onClose}
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 ${
                 isActive
@@ -103,5 +116,29 @@ export default function Sidebar() {
         </button>
       </div>
     </aside>
+  )
+
+  return (
+    <>
+      {/* Backdrop — mobile only, shown when sidebar is open */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar — mobile: fixed overlay drawer; desktop: always visible */}
+      <div
+        className={`
+          fixed inset-y-0 left-0 z-50 transform transition-transform duration-200 ease-in-out
+          ${isOpen ? 'translate-x-0' : '-translate-x-full'}
+          md:relative md:translate-x-0 md:z-auto
+        `}
+      >
+        {sidebarContent}
+      </div>
+    </>
   )
 }

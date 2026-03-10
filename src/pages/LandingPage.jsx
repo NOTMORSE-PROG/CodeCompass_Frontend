@@ -139,7 +139,7 @@ export default function LandingPage() {
       </nav>
 
       {/* ── Hero ───────────────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-6 pt-20 pb-24 text-center">
+      <section className="max-w-6xl mx-auto px-6 pt-12 pb-16 md:pt-20 md:pb-24 text-center">
         {/* Badge */}
         <div className="inline-flex items-center gap-2 bg-brand-yellow/10 border border-brand-yellow/30
                         text-brand-black text-xs font-semibold px-4 py-1.5 rounded-full mb-6">
@@ -148,7 +148,7 @@ export default function LandingPage() {
         </div>
 
         {/* Headline */}
-        <h1 className="text-5xl md:text-6xl font-extrabold text-brand-black leading-tight mb-6">
+        <h1 className="text-3xl md:text-5xl lg:text-6xl font-extrabold text-brand-black leading-tight mb-6">
           Your AI Career Mentor
           <br />
           <span className="text-brand-yellow">for CCS Students</span>
@@ -197,10 +197,10 @@ export default function LandingPage() {
       <div className="h-1.5 bg-gradient-to-r from-brand-yellow via-brand-yellow-dark to-brand-yellow" />
 
       {/* ── Features ───────────────────────────────────────────── */}
-      <section id="features" className="bg-gray-50 py-24">
+      <section id="features" className="bg-gray-50 py-14 md:py-24">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-14">
-            <h2 className="text-4xl font-extrabold text-brand-black mb-3">
+            <h2 className="text-2xl md:text-4xl font-extrabold text-brand-black mb-3">
               Everything you need, <span className="text-brand-yellow">one platform</span>
             </h2>
             <p className="text-gray-500 text-lg max-w-xl mx-auto">
@@ -223,10 +223,10 @@ export default function LandingPage() {
       </section>
 
       {/* ── How it works ───────────────────────────────────────── */}
-      <section id="how-it-works" className="py-24 bg-white">
+      <section id="how-it-works" className="py-14 md:py-24 bg-white">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-14">
-            <h2 className="text-4xl font-extrabold text-brand-black mb-3">
+            <h2 className="text-2xl md:text-4xl font-extrabold text-brand-black mb-3">
               How does <span className="text-brand-yellow">CodeCompass</span> work?
             </h2>
             <p className="text-gray-500 text-lg">Just 3 steps — and you're ready to go!</p>
@@ -248,17 +248,17 @@ export default function LandingPage() {
       </section>
 
       {/* ── Who it's for ───────────────────────────────────────── */}
-      <section id="for-who" className="py-24 bg-gray-50">
+      <section id="for-who" className="py-14 md:py-24 bg-gray-50">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-14">
-            <h2 className="text-4xl font-extrabold text-brand-black mb-3">
+            <h2 className="text-2xl md:text-4xl font-extrabold text-brand-black mb-3">
               Who is <span className="text-brand-yellow">CodeCompass</span> for?
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {ROLES.map(({ emoji, title, desc, cta }) => (
-              <div key={title} className="bg-white rounded-2xl border-2 border-gray-200 p-8 text-center
+              <div key={title} className="bg-white rounded-2xl border-2 border-gray-200 p-6 md:p-8 text-center
                                           hover:border-brand-yellow hover:shadow-lg transition-all group">
                 <div className="text-5xl mb-4">{emoji}</div>
                 <h3 className="font-bold text-brand-black text-xl mb-3">{title}</h3>
@@ -279,9 +279,9 @@ export default function LandingPage() {
       </section>
 
       {/* ── CTA Banner ─────────────────────────────────────────── */}
-      <section className="bg-brand-black py-20">
+      <section className="bg-brand-black py-12 md:py-20">
         <div className="max-w-3xl mx-auto px-6 text-center">
-          <h2 className="text-4xl font-extrabold text-white mb-4">
+          <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">
             Ready to get started?{' '}
             <span className="text-brand-yellow">Let's go.</span>
           </h2>
