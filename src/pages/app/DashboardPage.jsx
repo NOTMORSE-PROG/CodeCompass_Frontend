@@ -94,9 +94,10 @@ export default function DashboardPage() {
               .filter((n) => n.status === 'available' || n.status === 'in_progress')
               .slice(0, 3)
               .map((node) => (
-                <div
+                <Link
                   key={node.id}
-                  className="flex items-center gap-3 p-3 bg-white border border-brand-yellow/30 rounded-lg"
+                  to="/app/roadmap"
+                  className="flex items-center gap-3 p-3 bg-white border border-brand-yellow/30 rounded-lg hover:border-brand-yellow hover:shadow-sm transition-all"
                 >
                   <div className="w-2 h-2 bg-brand-yellow rounded-full flex-shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -105,8 +106,8 @@ export default function DashboardPage() {
                       {node.nodeType} • {node.estimatedHours}h • {node.xpReward} XP
                     </p>
                   </div>
-                  <span className="text-xs badge-yellow">{node.status}</span>
-                </div>
+                  <span className="text-xs font-semibold text-brand-yellow flex-shrink-0">Start →</span>
+                </Link>
               ))}
           </div>
         </div>

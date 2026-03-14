@@ -99,25 +99,9 @@ const useAuthStore = create((set, get) => ({
       if (!data.isNewUser) {
         toast.success(`Welcome back, ${data.user.firstName}!`)
       }
-      return { success: true, isNewUser: data.isNewUser }
-    } catch (error) {
-      const msg = error.response?.data?.detail || 'Google sign-in failed.'
-      toast.error(msg)
-      return { success: false, error: msg }
-    } finally {
-      set({ isLoading: false })
-    }
-  },
-
-  /** Set role for new Google OAuth users (before onboarding). Returns fresh tokens. */
-  setRole: async (role) => {
-    set({ isLoading: true })
-    try {
-      const { data } = await authApi.setRole(role)
-      get()._saveSession(data)
       return { success: true }
     } catch (error) {
-      const msg = error.response?.data?.detail || 'Failed to set role.'
+      const msg = error.response?.data?.detail || 'Google sign-in failed.'
       toast.error(msg)
       return { success: false, error: msg }
     } finally {

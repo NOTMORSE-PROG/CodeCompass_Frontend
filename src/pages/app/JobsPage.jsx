@@ -33,6 +33,25 @@ function stripHtml(str) {
     .replace(/&quot;/g, '"')
     .replace(/\s{2,}/g, ' ')
     .trim()
+    .replace(/^\.{2,}\s*/, '')   // strip leading ...
+    .replace(/\s*\.{2,}$/, '')   // strip trailing ...
+    .replace(/^…\s*/, '')        // strip leading …
+    .replace(/\s*…$/, '')        // strip trailing …
+    .replace(/\.\.\.\s+\.\.\./g, '—') // merge inline "... ..." gaps
+    .trim()
+}
+
+// Returns true if the description looks like a truncated snippet (Jooble free API)
+function isTruncated(str) {
+  if (!str) return false
+  const t = str.trim()
+  // Explicit ellipsis markers
+  if (t.startsWith('...') || t.endsWith('...') || t.startsWith('…') || t.endsWith('…')) return true
+  // Starts mid-sentence (lowercase first letter) — clearly cut off
+  if (/^[a-z]/.test(t)) return true
+  // Very short description (under 400 chars) — almost certainly a snippet
+  if (t.length < 400) return true
+  return false
 }
 
 function formatJobType(type) {
@@ -50,12 +69,148 @@ function timeSince(dateStr) {
 }
 
 // ---------------------------------------------------------------------------
+// Description renderer — parses plain text into structured sections
+// ---------------------------------------------------------------------------
+
+// Words that are too "sentence-y" to be section header starters
+const FILLER_STARTS = new Set([
+  'to', 'in', 'on', 'at', 'is', 'are', 'was', 'were', 'be', 'been',
+  'and', 'or', 'but', 'if', 'that', 'this', 'for', 'of', 'as', 'so',
+  'not', 'no', 'by', 'from', 'with', 'the', 'a', 'an',
+  'we', 'our', 'you', 'your', 'it', 'its',
+])
+
+// Inject newlines so the line-by-line parser can structure flat text
+function preprocessText(text) {
+  let result = text
+    // 1. Standard bullets (•) → own lines
+    .replace(/\s*•\s*/g, '\n• ')
+
+    // 2. Middle-dot (·) bullets — detect section name before the first ·
+    //    e.g. "landscape. Duties and Responsibilities · Provide..."
+    .replace(/(^|[.!?])\s*([A-Z][a-zA-Z\s\-/]{2,50})\s+·\s*/g, (m, prefix, name) => {
+      const words = name.trim().split(/\s+/)
+      if (words.length <= 6) return `${prefix || ''}\n${name}\n• `
+      return m
+    })
+    // Convert remaining · to standard bullets
+    .replace(/\s*·\s*/g, '\n• ')
+
+    // 3. ALL CAPS inline section headers before regular text
+    //    e.g. "POSITION SUMMARY As an IT Support..."
+    .replace(/(^|[.!?\n])\s*([A-Z][A-Z ]{5,49}[A-Z])\s+(?=[A-Z][a-z])/g, (m, prefix, name) => {
+      const words = name.trim().split(/\s+/)
+      if (words.length <= 5) return `${prefix || ''}\n${name}\n`
+      return m
+    })
+
+    // 4. Roman numeral headers → own lines
+    .replace(/([^\n])[ \t]*([IVX]{1,4}\.\s[A-Z])/g, '$1\n$2')
+
+    // 5. Inline sub-headers after sentence end: "Meet the team:" / "Where you come in:"
+    //    Must be 2–7 words, ≤ 42 chars, not starting with a filler word
+    .replace(/([.!?])\s+([A-Z][a-zA-Z''\-/ ]{3,40}:)\s+/g, (m, punct, header) => {
+      const words = header.replace(/:$/, '').trim().split(/\s+/)
+      const firstWord = words[0].toLowerCase()
+      if (words.length >= 2 && words.length <= 7 && !FILLER_STARTS.has(firstWord)) {
+        return `${punct}\n${header}\n`
+      }
+      return m
+    })
+
+  // 6. If still a wall of text, break at sentence boundaries for readability
+  const nonEmpty = result.split('\n').filter((l) => l.trim()).length
+  if (nonEmpty <= 2 && result.length > 300) {
+    result = result.replace(/([.!?]) (?=[A-Z][a-z])/g, '$1\n')
+  }
+
+  return result
+}
+
+function classifyLine(line) {
+  const trimmed = line.trim()
+  if (!trimmed) return 'empty'
+  // Roman numeral section header: I. II. III. IV. etc.
+  if (/^[IVX]+\.\s/.test(trimmed)) return 'section'
+  // Short line ending with colon → sub-header
+  if (trimmed.endsWith(':') && trimmed.length < 80) return 'subheader'
+  // Bullet point
+  if (trimmed.startsWith('•') || trimmed.startsWith('-') || trimmed.startsWith('*')) return 'bullet'
+  return 'text'
+}
+
+function DescriptionBody({ text }) {
+  const lines = preprocessText(text).split('\n')
+  const blocks = []
+  let paraBuffer = []
+
+  const flushPara = () => {
+    if (paraBuffer.length > 0) {
+      blocks.push({ type: 'paragraph', content: paraBuffer.join(' ') })
+      paraBuffer = []
+    }
+  }
+
+  for (const line of lines) {
+    const kind = classifyLine(line)
+    const trimmed = line.trim()
+
+    if (kind === 'empty') {
+      flushPara()
+      continue
+    }
+    if (kind === 'section') {
+      flushPara()
+      blocks.push({ type: 'section', content: trimmed })
+    } else if (kind === 'subheader') {
+      flushPara()
+      blocks.push({ type: 'subheader', content: trimmed })
+    } else if (kind === 'bullet') {
+      flushPara()
+      blocks.push({ type: 'bullet', content: trimmed.replace(/^[•\-*]\s*/, '') })
+    } else {
+      paraBuffer.push(trimmed)
+    }
+  }
+  flushPara()
+
+  return (
+    <div className="space-y-0.5">
+      {blocks.map((block, i) => {
+        if (block.type === 'section') return (
+          <h3 key={i} className="text-sm font-bold text-brand-black mt-4 mb-1 first:mt-0">
+            {block.content}
+          </h3>
+        )
+        if (block.type === 'subheader') return (
+          <p key={i} className="text-xs font-semibold text-brand-black mt-3 mb-0.5 uppercase tracking-wide">
+            {block.content.replace(/:$/, '')}
+          </p>
+        )
+        if (block.type === 'bullet') return (
+          <div key={i} className="flex items-start gap-2 py-0.5">
+            <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-brand-yellow flex-shrink-0" />
+            <span className="text-sm text-brand-gray-mid leading-relaxed">{block.content}</span>
+          </div>
+        )
+        return (
+          <p key={i} className="text-sm text-brand-gray-mid leading-relaxed py-0.5">
+            {block.content}
+          </p>
+        )
+      })}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Job Detail Modal
 // ---------------------------------------------------------------------------
 function JobModal({ job, onClose }) {
   const { savedJobIds, saveJob, unsaveJob } = useJobsStore()
   const isSaved = savedJobIds.has(job.id)
   const description = stripHtml(job.description)
+  const truncated = isTruncated(job.description)
   const posted = timeSince(job.fetchedAt)
 
   // Close on Escape
@@ -121,9 +276,14 @@ function JobModal({ job, onClose }) {
         {/* Description */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {description ? (
-            <p className="text-sm text-brand-gray-mid leading-relaxed whitespace-pre-line">
-              {description}
-            </p>
+            <>
+              <DescriptionBody text={description} />
+              {truncated && (
+                <p className="mt-4 text-xs text-brand-gray-mid italic border-t border-gray-100 pt-3">
+                  Preview only — click <strong>Apply Now</strong> to see the full job description on the source site.
+                </p>
+              )}
+            </>
           ) : (
             <p className="text-sm text-brand-gray-mid italic">No description available.</p>
           )}
@@ -411,14 +571,20 @@ export default function JobsPage() {
           </div>
 
           {/* Recommended */}
-          {!isLoadingRecommended && recommendedJobs.length > 0 && (
+          {(isLoadingRecommended || recommendedJobs.length > 0) && (
             <div className="mb-6">
               <h2 className="text-sm font-bold text-brand-black mb-3">Recommended for You</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {recommendedJobs.map((job) => (
-                  <JobCard key={job.id} job={job} isRecommended onClick={() => setSelectedJob(job)} />
-                ))}
-              </div>
+              {isLoadingRecommended ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {[1, 2, 3].map((n) => <JobCardSkeleton key={n} />)}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {recommendedJobs.map((job) => (
+                    <JobCard key={job.id} job={job} isRecommended onClick={() => setSelectedJob(job)} />
+                  ))}
+                </div>
+              )}
               <div className="mt-5 mb-3 border-t border-gray-100 pt-4">
                 <h2 className="text-sm font-bold text-brand-black">All Jobs</h2>
               </div>

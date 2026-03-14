@@ -63,9 +63,16 @@ const useRoadmapStore = create((set, get) => ({
       const updatedNode = data.node
 
       if (newStatus === 'completed') {
-        // Re-fetch full roadmap to sync unlocked nodes
+        // Snapshot statuses before re-fetch to detect newly unlocked nodes
+        const prevStatuses = Object.fromEntries(
+          (get().currentRoadmap?.nodes ?? []).map((n) => [n.id, n.status])
+        )
         toast.success(`+${updatedNode.xpReward} XP! Node completed!`)
-        get().fetchRoadmap(roadmapId)
+        const refreshed = await get().fetchRoadmap(roadmapId)
+        const newlyUnlocked = refreshed?.nodes?.filter(
+          (n) => prevStatuses[n.id] === 'locked' && n.status === 'available'
+        ) ?? []
+        return { ...data, newlyUnlocked }
       } else {
         // Optimistic update for in_progress
         set((state) => {

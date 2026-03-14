@@ -11,7 +11,6 @@ import LandingPage from './pages/LandingPage'
 // Auth pages
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
-import GoogleSetupPage from './pages/auth/GoogleSetupPage'
 
 // Onboarding pages
 import OnboardingPage from './pages/onboarding/OnboardingPage'
@@ -20,7 +19,7 @@ import OnboardingPage from './pages/onboarding/OnboardingPage'
 import DashboardPage from './pages/app/DashboardPage'
 import RoadmapPage from './pages/app/RoadmapPage'
 import AIChatPage from './pages/app/AIChatPage'
-import MentorsPage from './pages/app/MentorsPage'
+import ResumePage from './pages/app/ResumePage'
 import JobsPage from './pages/app/JobsPage'
 import UniversitiesPage from './pages/app/UniversitiesPage'
 import CertificationsPage from './pages/app/CertificationsPage'
@@ -42,31 +41,26 @@ export default function App() {
           <Route path="/auth/register" element={<RegisterPage />} />
         </Route>
 
-        {/* Google OAuth role setup — authenticated, no onboarding check */}
-        <Route element={<ProtectedRoute />}>
-          <Route path="/auth/google-setup" element={<GoogleSetupPage />} />
-        </Route>
-
-        {/* Onboarding — authenticated + role set but not yet onboarded */}
-        <Route element={<ProtectedRoute requireRole />}>
+        {/* Onboarding — authenticated but not yet onboarded */}
+        <Route element={<ProtectedRoute requireOnboarded={false} />}>
           <Route element={<OnboardingLayout />}>
             <Route path="/onboarding" element={<OnboardingPage />} />
           </Route>
         </Route>
 
-        {/* Main app — authenticated + role set + onboarded */}
-        <Route element={<ProtectedRoute requireRole requireOnboarded />}>
+        {/* Main app — authenticated + onboarded */}
+        <Route element={<ProtectedRoute requireOnboarded />}>
           <Route element={<AppLayout />}>
             <Route path="/app/dashboard" element={<DashboardPage />} />
             <Route path="/app/roadmap" element={<RoadmapPage />} />
             <Route path="/app/ai-chat" element={<AIChatPage />} />
-            <Route path="/app/mentors" element={<MentorsPage />} />
+            <Route path="/app/resume" element={<ResumePage />} />
             <Route path="/app/jobs" element={<JobsPage />} />
             {/* University finder — incoming students + admins */}
             <Route
               path="/app/universities"
               element={
-                <RoleGuard roles={['incoming_student', 'admin']}>
+                <RoleGuard roles={['incoming_student', 'undergraduate', 'admin']}>
                   <UniversitiesPage />
                 </RoleGuard>
               }

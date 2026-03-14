@@ -1,8 +1,7 @@
 /**
- * Register page — includes role selector (Incoming Student / Undergraduate / Mentor).
+ * Register page — no role selection; all users start as students.
  * Light theme — white background, yellow accents.
  */
-import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -17,61 +16,28 @@ const schema = z.object({
   email: z.string().email('Please enter a valid email address.'),
   password: z.string().min(8, 'Password must be at least 8 characters.'),
   passwordConfirm: z.string(),
-  role: z.enum(['undergraduate', 'mentor'], {
-    errorMap: () => ({ message: 'Please select your role.' }),
-  }),
 }).refine((data) => data.password === data.passwordConfirm, {
   message: 'Passwords do not match.',
   path: ['passwordConfirm'],
 })
 
-const ROLES = [
-  {
-    value: 'undergraduate',
-    label: 'Student',
-    desc: 'Get a personalized skill roadmap, certifications, and job matches',
-  },
-  {
-    value: 'mentor',
-    label: 'Mentor',
-    desc: 'IT professional or professor — guide the next generation of CCS students',
-  },
-]
-
 export default function RegisterPage() {
   const { register: registerUser, loginWithGoogle, isLoading } = useAuthStore()
   const navigate = useNavigate()
-  const [selectedRole, setSelectedRole] = useState('')
-
-  const getPostLoginRoute = (user) => {
-    if (!user?.role) return '/auth/google-setup'
-    if (user.isOnboarded) return '/app/dashboard'
-    return '/onboarding'
-  }
 
   const handleGoogleSuccess = async ({ credential }) => {
     const result = await loginWithGoogle(credential)
     if (result.success) {
-      if (result.isNewUser) {
-        navigate('/auth/google-setup', { replace: true })
-      } else {
-        const { user } = useAuthStore.getState()
-        navigate(getPostLoginRoute(user), { replace: true })
-      }
+      const { user } = useAuthStore.getState()
+      navigate(user?.isOnboarded ? '/app/dashboard' : '/onboarding', { replace: true })
     }
   }
 
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors },
   } = useForm({ resolver: zodResolver(schema) })
-
-  const handleRoleSelect = (role) => {
-    setSelectedRole(role)
-    setValue('role', role, { shouldValidate: true })
-  }
 
   const onSubmit = async (data) => {
     const result = await registerUser({
@@ -79,12 +45,11 @@ export default function RegisterPage() {
       last_name: data.lastName,
       username: data.email.split('@')[0] + Math.floor(Math.random() * 1000),
       email: data.email,
-      role: data.role,
       password: data.password,
       password_confirm: data.passwordConfirm,
     })
     if (result.success) {
-      navigate(data.role === 'mentor' ? '/app/dashboard' : '/onboarding', { replace: true })
+      navigate('/onboarding', { replace: true })
     }
   }
 
@@ -92,49 +57,10 @@ export default function RegisterPage() {
     <div>
       <h2 className="text-2xl font-bold text-brand-black mb-1">Create an Account</h2>
       <p className="text-gray-500 text-sm mb-6">
-        Join CodeCompass — your AI-powered IT career mentor!
+        Join CodeCompass — your AI-powered IT career guide!
       </p>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        {/* Role selector */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Who are you? (Select your role)
-          </label>
-          <div className="space-y-2">
-            {ROLES.map((role) => (
-              <button
-                key={role.value}
-                type="button"
-                onClick={() => handleRoleSelect(role.value)}
-                className={`w-full text-left px-4 py-3 rounded-lg border-2 transition-all duration-150 ${
-                  selectedRole === role.value
-                    ? 'border-brand-yellow bg-brand-yellow/10 text-brand-black'
-                    : 'border-gray-200 bg-white text-gray-700 hover:border-brand-yellow/50 hover:bg-yellow-50'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-sm">{role.label}</p>
-                    <p className="text-xs text-gray-500">{role.desc}</p>
-                  </div>
-                  {selectedRole === role.value && (
-                    <div className="w-4 h-4 rounded-full bg-brand-yellow flex items-center justify-center flex-shrink-0 ml-3">
-                      <svg className="w-2.5 h-2.5 text-brand-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-          <input type="hidden" {...register('role')} />
-          {errors.role && (
-            <p className="text-red-500 text-xs mt-1">{errors.role.message}</p>
-          )}
-        </div>
-
         {/* Name */}
         <div className="grid grid-cols-2 gap-3">
           <div>

@@ -8,6 +8,7 @@ import {
   InformationCircleIcon,
 } from '@heroicons/react/24/outline'
 import { certApi } from '../../api/certifications'
+import { roadmapApi } from '../../api/roadmaps'
 import toast from 'react-hot-toast'
 
 const PROVIDERS = [
@@ -223,6 +224,90 @@ const HOW_TO_GUIDES = {
     'Complete all required modules, projects, or assessments.',
     'Claim your certificate upon successful completion.',
   ],
+}
+
+// ─── Recommended Certs Strip ──────────────────────────────────────────────────
+function RecommendedCertMiniCard({ cert, tracking, onOpenDetail, onTrack }) {
+  const bgColor = PROVIDER_COLORS[cert.provider] || '#6B7280'
+  const isTracked = !!tracking
+  return (
+    <div
+      className="flex-shrink-0 w-48 bg-white border border-gray-200 rounded-xl p-3 cursor-pointer
+                 hover:border-purple-300 hover:shadow-sm transition-all flex flex-col"
+      onClick={() => onOpenDetail(cert)}
+    >
+      <div className="flex items-center gap-2 mb-2">
+        <div
+          className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-white font-black text-xs"
+          style={{ backgroundColor: bgColor }}
+        >
+          {cert.abbreviation?.[0] || cert.name[0]}
+        </div>
+        {cert.isFree && (
+          <span className="text-xs px-1.5 py-0.5 bg-green-100 text-green-700 rounded font-semibold">FREE</span>
+        )}
+      </div>
+      <p className="text-xs font-bold text-brand-black line-clamp-2 leading-snug mb-1 flex-1">{cert.name}</p>
+      <p className="text-xs text-brand-gray-mid mb-3">{cert.levelDisplay}</p>
+      <button
+        onClick={(e) => { e.stopPropagation(); if (!isTracked) onTrack(cert.id, null, 'interested') }}
+        disabled={isTracked}
+        className={`w-full text-xs font-bold py-1.5 rounded-lg transition-all ${
+          isTracked
+            ? 'bg-gray-100 text-gray-400 cursor-default'
+            : 'bg-brand-yellow text-brand-black hover:bg-brand-yellow-dark active:scale-95'
+        }`}
+      >
+        {isTracked ? 'Tracked ✓' : 'Track This'}
+      </button>
+    </div>
+  )
+}
+
+function RecommendedCertsStrip({ certs, roadmapTitle, trackingMap, onOpenDetail, onTrack, isLoading }) {
+  if (isLoading) {
+    return (
+      <div className="mb-5 p-4 bg-gradient-to-r from-purple-50 to-yellow-50 border border-purple-100 rounded-xl">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-base">✨</span>
+          <div className="space-y-1">
+            <div className="h-3.5 w-36 bg-purple-100 rounded animate-pulse" />
+            <div className="h-3 w-52 bg-purple-100/60 rounded animate-pulse" />
+          </div>
+        </div>
+        <div className="flex gap-3">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="flex-shrink-0 w-48 h-28 bg-white/70 border border-purple-100 rounded-xl animate-pulse" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+  if (!certs.length) return null
+  return (
+    <div className="mb-5 p-4 bg-gradient-to-r from-purple-50 to-yellow-50 border border-purple-100 rounded-xl">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="text-base">✨</span>
+        <div>
+          <p className="text-sm font-bold text-brand-black">Recommended for You</p>
+          {roadmapTitle && (
+            <p className="text-xs text-brand-gray-mid">Based on your "{roadmapTitle}" roadmap</p>
+          )}
+        </div>
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1">
+        {certs.map((cert) => (
+          <RecommendedCertMiniCard
+            key={cert.id}
+            cert={cert}
+            tracking={trackingMap[cert.id]}
+            onOpenDetail={onOpenDetail}
+            onTrack={onTrack}
+          />
+        ))}
+      </div>
+    </div>
+  )
 }
 
 // ─── Detail Drawer ────────────────────────────────────────────────────────────
@@ -554,6 +639,9 @@ export default function CertificationsPage() {
   const [activeTab, setActiveTab] = useState('browse')
   const [isLoading, setIsLoading] = useState(true)
   const [detailCert, setDetailCert] = useState(null)
+  const [roadmapNodes, setRoadmapNodes] = useState([])
+  const [roadmapTitle, setRoadmapTitle] = useState('')
+  const [isLoadingRecs, setIsLoadingRecs] = useState(true)
 
   useEffect(() => {
     const load = async () => {
@@ -569,6 +657,21 @@ export default function CertificationsPage() {
         /* silent */
       } finally {
         setIsLoading(false)
+      }
+      // Fetch primary roadmap for recommendations (non-blocking)
+      try {
+        const listRes = await roadmapApi.list()
+        const roadmaps = listRes.data.results || listRes.data
+        const primary = roadmaps.find((r) => r.isPrimary) || roadmaps[0]
+        if (primary) {
+          const detailRes = await roadmapApi.detail(primary.id)
+          setRoadmapNodes(detailRes.data.nodes || [])
+          setRoadmapTitle(detailRes.data.title || '')
+        }
+      } catch {
+        /* no roadmap — recommendations simply won't show */
+      } finally {
+        setIsLoadingRecs(false)
       }
     }
     load()
@@ -627,6 +730,25 @@ export default function CertificationsPage() {
   const earnedCount = myTracking.filter((t) => t.status === 'passed').length
   const studyingCount = myTracking.filter((t) => t.status === 'studying').length
 
+  // Dynamically score DB certs against the user's roadmap node titles
+  const recommendations = useMemo(() => {
+    if (!roadmapNodes.length || !certs.length) return []
+    const roadmapText = roadmapNodes
+      .filter((n) => n.nodeType !== 'milestone')
+      .map((n) => n.title.toLowerCase())
+      .join(' ')
+    return certs
+      .filter((c) => !trackingMap[c.id])
+      .map((c) => ({
+        cert: c,
+        score: (c.relevantSkills || []).filter((s) => roadmapText.includes(s.toLowerCase())).length,
+      }))
+      .filter(({ score }) => score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 4)
+      .map(({ cert }) => cert)
+  }, [certs, roadmapNodes, trackingMap])
+
   return (
     <div>
       {/* Header */}
@@ -668,6 +790,18 @@ export default function CertificationsPage() {
 
       {activeTab === 'browse' ? (
         <>
+          {/* Recommendations based on active roadmap */}
+          {(isLoadingRecs || recommendations.length > 0) && (
+            <RecommendedCertsStrip
+              certs={recommendations}
+              roadmapTitle={roadmapTitle}
+              trackingMap={trackingMap}
+              onOpenDetail={setDetailCert}
+              onTrack={handleTrack}
+              isLoading={isLoadingRecs}
+            />
+          )}
+
           {/* Search */}
           <div className="relative mb-4">
             <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />

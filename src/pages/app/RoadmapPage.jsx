@@ -3,7 +3,9 @@
  */
 import { useEffect, useState, useCallback, useRef } from 'react'
 import toast from 'react-hot-toast'
+import confetti from 'canvas-confetti'
 import useRoadmapStore from '../../stores/roadmapStore'
+import useGamificationStore from '../../stores/gamificationStore'
 import { roadmapApi } from '../../api/roadmaps'
 
 const NODE_TYPE_LABEL = {
@@ -15,6 +17,14 @@ const NODE_TYPE_LABEL = {
 }
 
 const DIFFICULTY_LABELS = ['', 'Beginner', 'Easy', 'Intermediate', 'Hard', 'Expert']
+
+// Sub-section grouping: types listed here get their own labeled divider within a phase.
+// Order determines render priority (after regular skill/assessment nodes).
+const SUB_SECTION_TYPES = [
+  { type: 'project',       label: 'Projects'       },
+  { type: 'certification', label: 'Certifications' },
+]
+const SUB_SECTION_TYPE_SET = new Set(SUB_SECTION_TYPES.map((s) => s.type))
 
 // Titles matching these are opinion/meta videos, not actual lessons.
 // Must stay in sync with backend _META_TITLE_PATTERNS in youtube_client.py.
@@ -44,6 +54,42 @@ function formatDuration(minutes) {
   const h = Math.floor(minutes / 60)
   const m = minutes % 60
   return m > 0 ? `${h}h ${m}m` : `${h}h`
+}
+
+function formatRemainingHours(h) {
+  if (h <= 0) return null
+  return h < 1 ? '< 1h left' : `~${Math.ceil(h)}h left`
+}
+
+function fireConfetti() {
+  confetti({
+    particleCount: 120,
+    spread: 70,
+    origin: { x: 0.5, y: 0.6 },
+    colors: ['#F5C518', '#1a1a1a', '#ffffff', '#fbbf24'],
+    ticks: 200,
+    gravity: 1.2,
+  })
+}
+
+function fireSmallConfetti() {
+  confetti({
+    particleCount: 40,
+    spread: 45,
+    origin: { x: 0.5, y: 0.55 },
+    scalar: 0.8,
+    ticks: 150,
+  })
+}
+
+function SubSectionDivider({ label }) {
+  return (
+    <div className="flex items-center gap-2 pt-3 pb-1">
+      <div className="flex-1 h-px bg-gray-100" />
+      <span className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">{label}</span>
+      <div className="flex-1 h-px bg-gray-100" />
+    </div>
+  )
 }
 
 function getLsKey(nodeId, kind) {
@@ -277,7 +323,10 @@ function VideoAssessment({ roadmapId, nodeId, resource, onAssessmentPassed }) {
       )
       setResult(data)
       setQuizStatus(data.passed ? 'passed' : 'failed')
-      if (data.passed) onAssessmentPassed(resource.id, { results: data.results, questions })
+      if (data.passed) {
+        fireSmallConfetti()
+        onAssessmentPassed(resource.id, { results: data.results, questions })
+      }
     } catch {
       toast.error('Submission failed. Try again.')
       setQuizStatus('questions')
@@ -814,8 +863,8 @@ function ActiveLessonContent({
 // NodeCard
 // ---------------------------------------------------------------------------
 
-function NodeCard({ node, roadmapId, onUpdateStatus, displayNum }) {
-  const [expanded, setExpanded] = useState(false)
+function NodeCard({ node, roadmapId, onUpdateStatus, displayNum, prerequisiteTitle, phaseStats, onMountRef, onNodeCompleted }) {
+  const [expanded, setExpanded] = useState(() => node.status === 'in_progress')
   const [updating, setUpdating] = useState(false)
   const [resources, setResources] = useState(node.resources || [])
   const [fetchingResources, setFetchingResources] = useState(false)
@@ -904,7 +953,11 @@ function NodeCard({ node, roadmapId, onUpdateStatus, displayNum }) {
   async function handleMarkComplete() {
     setUpdating(true)
     try {
-      await onUpdateStatus(roadmapId, node.id, 'completed')
+      const result = await onUpdateStatus(roadmapId, node.id, 'completed')
+      if (result) {
+        fireConfetti()
+        onNodeCompleted?.(result.newlyUnlocked)
+      }
     } catch (err) {
       const msg = err?.response?.data?.detail || 'Action failed.'
       toast.error(msg)
@@ -935,6 +988,11 @@ function NodeCard({ node, roadmapId, onUpdateStatus, displayNum }) {
           }`}
         >
           {isCompleted ? '✓ ' : ''}{node.title}
+          {phaseStats && phaseStats.total > 0 && (
+            <span className="ml-2 font-normal normal-case tracking-normal opacity-80">
+              {phaseStats.completed}/{phaseStats.total} done
+            </span>
+          )}
           {node.xpReward > 0 && !isCompleted && (
             <span className="ml-2 opacity-70">+{node.xpReward} XP</span>
           )}
@@ -949,6 +1007,7 @@ function NodeCard({ node, roadmapId, onUpdateStatus, displayNum }) {
 
   return (
     <div
+      ref={onMountRef}
       className={`rounded-xl border-2 transition-all ${
         isCompleted
           ? 'border-brand-yellow bg-yellow-50'
@@ -1009,6 +1068,11 @@ function NodeCard({ node, roadmapId, onUpdateStatus, displayNum }) {
               +{node.xpReward} XP
             </span>
           </div>
+          {isLocked && prerequisiteTitle && (
+            <p className="text-xs text-gray-400 mt-1">
+              Complete <span className="font-semibold text-gray-500">"{prerequisiteTitle}"</span> to unlock
+            </p>
+          )}
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -1151,8 +1215,15 @@ export default function RoadmapPage() {
     isGenerating,
   } = useRoadmapStore()
 
+  const { profile: gamProfile, fetchProfile } = useGamificationStore()
+
   const [selectedRoadmapId, setSelectedRoadmapId] = useState(null)
   const [isRepairing, setIsRepairing] = useState(false)
+  const [nextUpNode, setNextUpNode] = useState(null)
+
+  // Auto-scroll to active node on page load
+  const nodeRefs = useRef({})
+  const hasScrolled = useRef(false)
 
   async function handleRepair() {
     if (!currentRoadmap) return
@@ -1170,15 +1241,38 @@ export default function RoadmapPage() {
 
   useEffect(() => {
     fetchRoadmaps()
-  }, [fetchRoadmaps])
+    fetchProfile()
+  }, [fetchRoadmaps, fetchProfile])
 
   useEffect(() => {
     if (roadmaps.length > 0 && !selectedRoadmapId) {
       const primary = roadmaps.find((r) => r.isPrimary) || roadmaps[0]
       setSelectedRoadmapId(primary.id)
+      hasScrolled.current = false
       fetchRoadmap(primary.id)
     }
   }, [roadmaps, selectedRoadmapId, fetchRoadmap])
+
+  // Auto-scroll to first in_progress (or available) node once per roadmap load
+  useEffect(() => {
+    if (!currentRoadmap || isLoading || hasScrolled.current) return
+    const target =
+      currentRoadmap.nodes?.find((n) => n.status === 'in_progress') ||
+      currentRoadmap.nodes?.find((n) => n.status === 'available')
+    if (!target) return
+    const el = nodeRefs.current[target.id]
+    if (el) {
+      setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150)
+      hasScrolled.current = true
+    }
+  }, [currentRoadmap, isLoading])
+
+  // Auto-dismiss "Next Up" banner after 6 seconds
+  useEffect(() => {
+    if (!nextUpNode) return
+    const t = setTimeout(() => setNextUpNode(null), 6000)
+    return () => clearTimeout(t)
+  }, [nextUpNode])
 
   if (isLoading && !currentRoadmap) {
     return (
@@ -1219,6 +1313,60 @@ export default function RoadmapPage() {
   const allLocked = currentRoadmap?.nodes?.length > 0 &&
     currentRoadmap.nodes.every((n) => n.status === 'locked' || n.nodeType === 'milestone')
 
+  const streakCount = gamProfile?.streakCount ?? 0
+  const remainingHours = currentRoadmap?.nodes
+    ?.filter((n) => n.status !== 'completed' && n.nodeType !== 'milestone')
+    .reduce((sum, n) => sum + (n.estimatedHours || 0), 0) ?? 0
+
+  // Build phase stats map: for each milestone, count done vs total nodes in its phase
+  const phaseStats = {}
+  if (currentRoadmap?.nodes) {
+    let phaseNodes = []
+    for (let i = currentRoadmap.nodes.length - 1; i >= 0; i--) {
+      const n = currentRoadmap.nodes[i]
+      if (n.nodeType === 'milestone') {
+        phaseStats[n.id] = {
+          total: phaseNodes.length,
+          completed: phaseNodes.filter((pn) => pn.status === 'completed').length,
+        }
+        phaseNodes = []
+      } else {
+        phaseNodes.unshift(n)
+      }
+    }
+  }
+
+  // Precompute per-node display data (displayNum + prereq) from the original flat order.
+  // Required because the render loop groups by type, losing the original idx.
+  const nodeDisplayData = {}
+  if (currentRoadmap?.nodes) {
+    let skillNum = 0
+    currentRoadmap.nodes.forEach((node, idx) => {
+      if (node.nodeType !== 'milestone') skillNum++
+      nodeDisplayData[node.id] = {
+        displayNum: node.nodeType !== 'milestone' ? skillNum : null,
+        prereq: node.status === 'locked'
+          ? currentRoadmap.nodes.slice(0, idx).filter((n) => n.nodeType !== 'milestone').at(-1)
+          : null,
+      }
+    })
+  }
+
+  // Group nodes into phases for sub-section rendering.
+  const phaseGroups = []
+  if (currentRoadmap?.nodes) {
+    let currentGroup = { milestone: null, nodes: [] }
+    for (const node of currentRoadmap.nodes) {
+      if (node.nodeType === 'milestone') {
+        phaseGroups.push(currentGroup)
+        currentGroup = { milestone: node, nodes: [] }
+      } else {
+        currentGroup.nodes.push(node)
+      }
+    }
+    phaseGroups.push(currentGroup)
+  }
+
   return (
     <div className="max-w-2xl mx-auto">
       {/* Header */}
@@ -1243,9 +1391,19 @@ export default function RoadmapPage() {
 
         {/* Progress bar */}
         <div>
-          <div className="flex justify-between text-sm mb-1">
+          <div className="flex items-center justify-between text-sm mb-1 gap-2">
             <span className="font-semibold text-brand-black">{completionPct.toFixed(0)}% complete</span>
-            <span className="text-brand-gray-mid">{completedCount} / {totalCount} nodes</span>
+            <div className="flex items-center gap-3">
+              {formatRemainingHours(remainingHours) && (
+                <span className="text-xs text-brand-gray-mid">{formatRemainingHours(remainingHours)}</span>
+              )}
+              {streakCount > 0 && (
+                <span className="flex items-center gap-1 text-xs font-bold text-orange-500">
+                  🔥 {streakCount} day streak
+                </span>
+              )}
+              <span className="text-brand-gray-mid">{completedCount} / {totalCount} nodes</span>
+            </div>
           </div>
           <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
             <div
@@ -1255,6 +1413,25 @@ export default function RoadmapPage() {
           </div>
         </div>
       </div>
+
+      {/* Next Up banner — briefly shown after completing a node */}
+      {nextUpNode && (
+        <div className="mb-4 flex items-center justify-between gap-3 bg-green-50 border border-green-300 rounded-xl px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="text-green-600 text-base">🔓</span>
+            <p className="text-sm font-semibold text-green-800">
+              <span className="font-bold">"{nextUpNode.title}"</span> is now unlocked!
+            </p>
+          </div>
+          <button
+            onClick={() => setNextUpNode(null)}
+            className="text-green-500 hover:text-green-700 text-xl leading-none flex-shrink-0"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       {/* Repair banner */}
       {allLocked && !isLoading && (
@@ -1280,21 +1457,47 @@ export default function RoadmapPage() {
         </div>
       ) : currentRoadmap?.nodes?.length > 0 ? (
         <div className="space-y-2">
-          {(() => {
-            let skillNum = 0
-            return currentRoadmap.nodes.map((node) => {
-              const displayNum = node.nodeType !== 'milestone' ? ++skillNum : null
+          {phaseGroups.map((group, gIdx) => {
+            const regularNodes = group.nodes.filter((n) => !SUB_SECTION_TYPE_SET.has(n.nodeType))
+            const subSections = SUB_SECTION_TYPES
+              .map(({ type, label }) => ({
+                label,
+                nodes: group.nodes.filter((n) => n.nodeType === type),
+              }))
+              .filter(({ nodes }) => nodes.length > 0)
+
+            const renderNode = (node) => {
+              const { displayNum, prereq } = nodeDisplayData[node.id] ?? {}
               return (
                 <NodeCard
                   key={node.id}
                   node={node}
-                  displayNum={displayNum}
+                  displayNum={displayNum ?? null}
                   roadmapId={currentRoadmap.id}
                   onUpdateStatus={updateNodeStatus}
+                  prerequisiteTitle={prereq?.title ?? null}
+                  phaseStats={node.nodeType === 'milestone' ? phaseStats[node.id] : null}
+                  onMountRef={(el) => { nodeRefs.current[node.id] = el }}
+                  onNodeCompleted={(newlyUnlocked) => {
+                    if (newlyUnlocked?.length > 0) setNextUpNode(newlyUnlocked[0])
+                  }}
                 />
               )
-            })
-          })()}
+            }
+
+            return (
+              <div key={gIdx}>
+                {group.milestone && renderNode(group.milestone)}
+                {regularNodes.map(renderNode)}
+                {subSections.map(({ label, nodes }) => (
+                  <div key={label}>
+                    <SubSectionDivider label={label} />
+                    {nodes.map(renderNode)}
+                  </div>
+                ))}
+              </div>
+            )
+          })}
         </div>
       ) : (
         <div className="flex items-center justify-center h-48 text-brand-gray-mid">
