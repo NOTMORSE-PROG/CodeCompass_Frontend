@@ -5,6 +5,7 @@ export const chatApi = {
   listSessions: () => apiClient.get('/chat/sessions/'),
   createSession: (data) => apiClient.post('/chat/sessions/', data),
   getSession: (sessionId) => apiClient.get(`/chat/sessions/${sessionId}/`),
+  updateSession: (sessionId, data) => apiClient.patch(`/chat/sessions/${sessionId}/`, data),
   deleteSession: (sessionId) => apiClient.delete(`/chat/sessions/${sessionId}/`),
   getMessages: (sessionId) => apiClient.get(`/chat/sessions/${sessionId}/messages/`),
 }
@@ -13,7 +14,7 @@ export const chatApi = {
  * Create a WebSocket connection for AI chat streaming.
  * Returns the WebSocket instance.
  */
-export function createChatWebSocket(sessionId, { onChunk, onEnd, onError, onSuggestions }) {
+export function createChatWebSocket(sessionId, { onChunk, onEnd, onError, onSuggestions, onTitleUpdate }) {
   const WS_BASE = import.meta.env.VITE_WS_URL || ''
   // Pass JWT access token as query param for WebSocket authentication
   const { accessToken } = useAuthStore.getState()
@@ -37,6 +38,8 @@ export function createChatWebSocket(sessionId, { onChunk, onEnd, onError, onSugg
         }
       } else if (data.type === 'stream_error') {
         onError?.(data.error)
+      } else if (data.type === 'session_title_updated') {
+        onTitleUpdate?.(data.title)
       } else {
         console.warn('[WS] Unknown message type:', data.type)
       }

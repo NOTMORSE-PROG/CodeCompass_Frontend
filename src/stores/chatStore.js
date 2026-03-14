@@ -22,6 +22,23 @@ const useChatStore = create((set, get) => ({
     }
   },
 
+  renameSession: async (sessionId, title) => {
+    try {
+      const { data } = await chatApi.updateSession(sessionId, { title })
+      set((state) => ({
+        sessions: state.sessions.map((s) =>
+          s.sessionId === sessionId ? { ...s, title: data.title } : s
+        ),
+        currentSession:
+          state.currentSession?.sessionId === sessionId
+            ? { ...state.currentSession, title: data.title }
+            : state.currentSession,
+      }))
+    } catch {
+      /* silent */
+    }
+  },
+
   deleteSession: async (sessionId) => {
     try {
       await chatApi.deleteSession(sessionId)
@@ -113,6 +130,17 @@ const useChatStore = create((set, get) => ({
       },
       onError: () => {
         set({ isStreaming: false, streamingContent: '', suggestions: [] })
+      },
+      onTitleUpdate: (title) => {
+        const { currentSession } = get()
+        if (!currentSession) return
+        const sid = currentSession.sessionId
+        set((state) => ({
+          sessions: state.sessions.map((s) =>
+            s.sessionId === sid ? { ...s, title } : s
+          ),
+          currentSession: { ...state.currentSession, title },
+        }))
       },
     })
 

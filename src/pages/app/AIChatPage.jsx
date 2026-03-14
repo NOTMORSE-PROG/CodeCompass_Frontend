@@ -1,19 +1,19 @@
 /**
  * AI Chat page — real-time conversation with CodeCompass AI.
- * Features: personalized context, markdown rendering, chat history sidebar, dynamic modes.
+ * Features: personalized context, markdown rendering, ChatGPT-like sidebar, dynamic modes.
  */
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import {
   PaperAirplaneIcon,
   Bars3Icon,
-  XMarkIcon,
   PlusIcon,
   TrashIcon,
+  PencilIcon,
+  EllipsisHorizontalIcon,
 } from '@heroicons/react/24/solid'
 import ReactMarkdown from 'react-markdown'
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
-// Register only the languages the AI assistant realistically outputs
 import python from 'react-syntax-highlighter/dist/esm/languages/prism/python'
 import javascript from 'react-syntax-highlighter/dist/esm/languages/prism/javascript'
 import jsx from 'react-syntax-highlighter/dist/esm/languages/prism/jsx'
@@ -41,9 +41,10 @@ SyntaxHighlighter.registerLanguage('cpp', cpp)
 import useChatStore from '../../stores/chatStore'
 import useAuthStore from '../../stores/authStore'
 import useRoadmapStore from '../../stores/roadmapStore'
+import { onboardingApi } from '../../api/onboarding'
 
 // ---------------------------------------------------------------------------
-// Chat modes — visibility is data-driven
+// Chat modes
 // ---------------------------------------------------------------------------
 const ALL_MODES = [
   { key: 'general',    label: 'General',    icon: '💬', contextType: 'general' },
@@ -65,28 +66,28 @@ function getDynamicPrompts(modeKey, user, roadmap, summary) {
   const interests = summary?.interests
   const interest1 = Array.isArray(interests) && interests.length > 0 ? interests[0] : 'web development'
   const roadmapTitle = roadmap?.title || 'your roadmap'
-  const _roadmapPct = roadmap?.completionPercentage ?? 0
   const currentNode = roadmap?.nodes?.find((n) => n.status === 'in_progress' || n.status === 'inProgress')?.title || null
 
   switch (modeKey) {
     case 'general':
       return [
         goal ? `How do I become a ${goal}?` : 'What IT career path fits me best?',
-        year && program ? `What skills should a ${year} ${program} student focus on?`
+        year && program
+          ? `What skills should a ${year} ${program} student focus on?`
           : program ? `What skills should a ${program} student prioritize?`
           : 'What should I learn first as a CCS student?',
         path ? `What free certifications match a ${path} path?` : 'What free certifications should I get?',
         goal ? `What's the job market like for ${goal}s in the Philippines?`
-          : "What's the tech job market like in the Philippines?",
+             : "What's the tech job market like in the Philippines?",
       ]
     case 'roadmap':
       return [
         currentNode ? `What should I focus on after finishing "${currentNode}"?`
-          : `What should I work on next in ${roadmapTitle}?`,
+                    : `What should I work on next in ${roadmapTitle}?`,
         currentNode ? `Explain why "${currentNode}" is important for my career`
-          : 'Explain the structure of my roadmap',
+                    : 'Explain the structure of my roadmap',
         currentNode ? `I'm stuck on "${currentNode}" — how do I approach it?`
-          : 'How do I stay consistent and avoid burnout on my roadmap?',
+                    : 'How do I stay consistent and avoid burnout on my roadmap?',
         `How long will it take to complete ${roadmapTitle}?`,
       ]
     case 'job':
@@ -108,7 +109,7 @@ function getDynamicPrompts(modeKey, user, roadmap, summary) {
   }
 }
 
-function getModeWelcome(modeKey, user, roadmap, _summary) {
+function getModeWelcome(modeKey, user, roadmap) {
   const firstName = user?.fullName?.split(' ')[0] || null
   const roadmapTitle = roadmap?.title || null
   const roadmapPct = roadmap?.completionPercentage ?? 0
@@ -129,6 +130,38 @@ function getModeWelcome(modeKey, user, roadmap, _summary) {
     default:
       return 'Hi! How can I help you today?'
   }
+}
+
+// ---------------------------------------------------------------------------
+// ChatGPT-style date bucket grouping
+// ---------------------------------------------------------------------------
+function getDateBucket(dateStr) {
+  const date = new Date(dateStr)
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const diffMs = startOfToday - new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const diffDays = Math.round(diffMs / 86400000)
+
+  if (diffDays === 0) return { label: 'Today', order: 0 }
+  if (diffDays === 1) return { label: 'Yesterday', order: 1 }
+  if (diffDays <= 7) return { label: 'Previous 7 Days', order: 2 }
+  if (diffDays <= 30) return { label: 'Previous 30 Days', order: 3 }
+  // Older: group by "Month Year"
+  const monthLabel = date.toLocaleDateString('en-PH', { month: 'long', year: 'numeric' })
+  return { label: monthLabel, order: 4 }
+}
+
+function groupSessions(sessions) {
+  const buckets = {}    // label → { order, items[] }
+  for (const s of sessions) {
+    const { label, order } = getDateBucket(s.updatedAt || s.createdAt)
+    if (!buckets[label]) buckets[label] = { order, items: [] }
+    buckets[label].items.push(s)
+  }
+  // Sort bucket labels by order, then by date desc within each bucket
+  return Object.entries(buckets)
+    .sort((a, b) => a[1].order - b[1].order)
+    .map(([label, { items }]) => ({ label, items }))
 }
 
 // ---------------------------------------------------------------------------
@@ -175,26 +208,100 @@ function MarkdownMessage({ content }) {
 }
 
 // ---------------------------------------------------------------------------
-// Sidebar helpers
+// Sidebar session item with three-dot menu + inline rename
 // ---------------------------------------------------------------------------
-function relativeDay(dateStr) {
-  const date = new Date(dateStr)
-  const now = new Date()
-  const diffDays = Math.floor((now - date) / 86400000)
-  if (diffDays === 0) return 'Today'
-  if (diffDays === 1) return 'Yesterday'
-  if (diffDays < 7) return `${diffDays} days ago`
-  return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })
-}
+function SessionItem({ session, isActive, onSelect, onRename, onDelete, deletingId }) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const [renameValue, setRenameValue] = useState(session.title || '')
+  const menuRef = useRef(null)
+  const inputRef = useRef(null)
 
-function groupSessions(sessions) {
-  const groups = {}
-  for (const s of sessions) {
-    const label = relativeDay(s.updatedAt || s.createdAt)
-    if (!groups[label]) groups[label] = []
-    groups[label].push(s)
+  // Close menu when clicking outside
+  useEffect(() => {
+    if (!menuOpen) return
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [menuOpen])
+
+  // Focus rename input when it appears
+  useEffect(() => {
+    if (renaming) inputRef.current?.focus()
+  }, [renaming])
+
+  const commitRename = () => {
+    const trimmed = renameValue.trim()
+    if (trimmed && trimmed !== session.title) onRename(session.sessionId, trimmed)
+    setRenaming(false)
   }
-  return groups
+
+  const handleRenameKey = (e) => {
+    if (e.key === 'Enter') commitRename()
+    if (e.key === 'Escape') { setRenameValue(session.title || ''); setRenaming(false) }
+  }
+
+  return (
+    <div
+      className={`relative group flex items-center gap-2 px-3 py-2 cursor-pointer transition-colors
+        ${isActive ? 'bg-brand-yellow/20 text-brand-black' : 'hover:bg-gray-100 text-brand-gray-mid'}`}
+      onClick={() => !renaming && onSelect(session)}
+    >
+      <span className="text-sm flex-shrink-0">{MODE_ICONS[session.contextType] || '💬'}</span>
+
+      {renaming ? (
+        <input
+          ref={inputRef}
+          value={renameValue}
+          onChange={(e) => setRenameValue(e.target.value)}
+          onKeyDown={handleRenameKey}
+          onBlur={commitRename}
+          onClick={(e) => e.stopPropagation()}
+          className="flex-1 min-w-0 text-xs bg-white border border-brand-yellow rounded px-1.5 py-0.5
+                     focus:outline-none focus:ring-1 focus:ring-brand-yellow text-brand-black"
+        />
+      ) : (
+        <span className="text-xs truncate flex-1 min-w-0">
+          {session.title || 'New Chat'}
+        </span>
+      )}
+
+      {/* Three-dot menu button */}
+      {!renaming && (
+        <div className="relative flex-shrink-0" ref={menuRef}>
+          <button
+            onClick={(e) => { e.stopPropagation(); setMenuOpen((o) => !o) }}
+            className={`p-0.5 rounded transition-opacity
+              ${menuOpen ? 'opacity-100 text-brand-black' : 'opacity-0 group-hover:opacity-100 text-brand-gray-mid hover:text-brand-black'}`}
+          >
+            <EllipsisHorizontalIcon className="w-4 h-4" />
+          </button>
+
+          {menuOpen && (
+            <div className="absolute right-0 top-6 z-50 w-32 bg-white rounded-lg shadow-lg border border-gray-200 py-1 text-xs">
+              <button
+                onClick={(e) => { e.stopPropagation(); setMenuOpen(false); setRenameValue(session.title || ''); setRenaming(true) }}
+                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 text-brand-black"
+              >
+                <PencilIcon className="w-3.5 h-3.5 text-brand-gray-mid" />
+                Rename
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onDelete(session.sessionId) }}
+                disabled={deletingId === session.sessionId}
+                className="w-full flex items-center gap-2 px-3 py-2 hover:bg-red-50 text-red-500 disabled:opacity-30"
+              >
+                <TrashIcon className="w-3.5 h-3.5" />
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -206,22 +313,17 @@ export default function AIChatPage() {
   const {
     sessions, messages, streamingContent, isStreaming,
     fetchSessions, createSession, selectSession, sendMessage,
-    disconnectWebSocket, deleteSession,
+    disconnectWebSocket, deleteSession, renameSession,
   } = useChatStore()
 
   const [input, setInput] = useState('')
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeMode, setActiveMode] = useState('general')
   const [deletingId, setDeletingId] = useState(null)
+  const [onboardingSummary, setOnboardingSummary] = useState(null)
   const messagesEndRef = useRef(null)
   const initialized = useRef(false)
   const currentSessionId = useChatStore((s) => s.currentSession?.sessionId)
-
-  // Pull onboarding summary from sessionStorage if available
-  const onboardingSummary = useMemo(() => {
-    try { return JSON.parse(sessionStorage.getItem('onboarding_summary') || 'null') }
-    catch { return null }
-  }, [])
 
   const primaryRoadmap = roadmaps?.[0] || null
 
@@ -237,10 +339,16 @@ export default function AIChatPage() {
     if (!visibleModes.find((m) => m.key === activeMode)) setActiveMode('general')
   }, [visibleModes]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Mount: fetch data + start a fresh session
+  // Mount: fetch onboarding summary + sessions + roadmaps + start fresh session
   useEffect(() => {
     if (initialized.current) return
     initialized.current = true
+
+    // Fetch real onboarding summary from API
+    onboardingApi.status().then(({ data }) => {
+      if (data?.onboarding_summary) setOnboardingSummary(data.onboarding_summary)
+    }).catch(() => {})
+
     fetchSessions()
     fetchRoadmaps()
     createSession('general').then((session) => {
@@ -286,8 +394,7 @@ export default function AIChatPage() {
     }
   }
 
-  const handleDeleteSession = async (e, sessionId) => {
-    e.stopPropagation()
+  const handleDeleteSession = useCallback(async (sessionId) => {
     setDeletingId(sessionId)
     await deleteSession(sessionId)
     setDeletingId(null)
@@ -296,7 +403,11 @@ export default function AIChatPage() {
       const session = await createSession(mode?.contextType || 'general')
       if (session) selectSession(session.sessionId)
     }
-  }
+  }, [currentSessionId, activeMode, deleteSession, createSession, selectSession])
+
+  const handleRenameSession = useCallback((sessionId, title) => {
+    renameSession(sessionId, title)
+  }, [renameSession])
 
   const handleSelectSession = (session) => {
     const mode = ALL_MODES.find((m) => m.contextType === session.contextType)
@@ -305,77 +416,75 @@ export default function AIChatPage() {
   }
 
   const dynamicPrompts = getDynamicPrompts(activeMode, user, primaryRoadmap, onboardingSummary)
-  const welcomeText = getModeWelcome(activeMode, user, primaryRoadmap, onboardingSummary)
+  const welcomeText = getModeWelcome(activeMode, user, primaryRoadmap)
   const showWelcome = messages.length === 0 && !isStreaming
   const sessionGroups = useMemo(() => groupSessions(sessions), [sessions])
 
   return (
     <div className="flex h-full max-h-[calc(100vh-8rem)] gap-0 overflow-hidden rounded-xl border border-gray-200 bg-white">
 
-      {/* ── Sidebar ─────────────────────────────────────────── */}
-      {sidebarOpen && (
-        <div className="w-52 flex-shrink-0 border-r border-gray-200 flex flex-col bg-gray-50">
-          <div className="p-3 border-b border-gray-200 flex items-center justify-between">
-            <span className="text-xs font-semibold text-brand-gray-mid uppercase tracking-wide">Chats</span>
-            <button onClick={() => setSidebarOpen(false)}
-              className="text-brand-gray-mid hover:text-brand-black p-0.5 rounded">
-              <XMarkIcon className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto py-1">
-            {Object.keys(sessionGroups).length === 0 ? (
-              <p className="text-xs text-brand-gray-mid text-center py-6 px-3">No previous chats yet</p>
-            ) : (
-              Object.entries(sessionGroups).map(([label, group]) => (
-                <div key={label}>
-                  <p className="text-[10px] font-semibold text-brand-gray-mid uppercase tracking-wide px-3 pt-3 pb-1">
-                    {label}
-                  </p>
-                  {group.map((session) => {
-                    const isActive = session.sessionId === currentSessionId
-                    return (
-                      <button
-                        key={session.sessionId}
-                        onClick={() => handleSelectSession(session)}
-                        className={`w-full text-left px-3 py-2 flex items-center gap-2 group transition-colors
-                          ${isActive
-                            ? 'bg-brand-yellow/20 text-brand-black'
-                            : 'hover:bg-gray-100 text-brand-gray-mid'}`}
-                      >
-                        <span className="text-sm flex-shrink-0">{MODE_ICONS[session.contextType] || '💬'}</span>
-                        <span className="text-xs truncate flex-1 min-w-0">
-                          {session.title || 'New Chat'}
-                        </span>
-                        <button
-                          onClick={(e) => handleDeleteSession(e, session.sessionId)}
-                          disabled={deletingId === session.sessionId}
-                          className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600
-                                     transition-opacity flex-shrink-0 disabled:opacity-30"
-                        >
-                          <TrashIcon className="w-3 h-3" />
-                        </button>
-                      </button>
-                    )
-                  })}
-                </div>
-              ))
-            )}
-          </div>
+      {/* ── Sidebar — smooth CSS width transition ─────────────── */}
+      <div
+        className={`flex-shrink-0 border-r border-gray-200 flex flex-col bg-gray-50 overflow-hidden
+                    transition-[width] duration-200 ease-in-out
+                    ${sidebarOpen ? 'w-56' : 'w-0 border-r-0'}`}
+      >
+        {/* Header */}
+        <div className="p-3 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+          <span className="text-xs font-semibold text-brand-gray-mid uppercase tracking-wide whitespace-nowrap">
+            Chat History
+          </span>
+          <button
+            onClick={handleNewChat}
+            className="text-brand-gray-mid hover:text-brand-black p-0.5 rounded transition-colors flex-shrink-0"
+            title="New chat"
+          >
+            <PlusIcon className="w-4 h-4" />
+          </button>
         </div>
-      )}
 
-      {/* ── Main area ───────────────────────────────────────── */}
+        {/* Session list */}
+        <div className="flex-1 overflow-y-auto py-1">
+          {sessionGroups.length === 0 ? (
+            <p className="text-xs text-brand-gray-mid text-center py-6 px-3 whitespace-nowrap">
+              No previous chats yet
+            </p>
+          ) : (
+            sessionGroups.map(({ label, items }) => (
+              <div key={label}>
+                <p className="text-[10px] font-semibold text-brand-gray-mid uppercase tracking-wide
+                              px-3 pt-3 pb-1 whitespace-nowrap">
+                  {label}
+                </p>
+                {items.map((session) => (
+                  <SessionItem
+                    key={session.sessionId}
+                    session={session}
+                    isActive={session.sessionId === currentSessionId}
+                    onSelect={handleSelectSession}
+                    onRename={handleRenameSession}
+                    onDelete={handleDeleteSession}
+                    deletingId={deletingId}
+                  />
+                ))}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* ── Main area ──────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0">
 
         {/* Header */}
         <div className="px-4 pt-4 pb-2 flex items-center gap-3">
-          {!sidebarOpen && (
-            <button onClick={() => setSidebarOpen(true)}
-              className="text-brand-gray-mid hover:text-brand-black flex-shrink-0">
-              <Bars3Icon className="w-5 h-5" />
-            </button>
-          )}
+          <button
+            onClick={() => setSidebarOpen((o) => !o)}
+            className="text-brand-gray-mid hover:text-brand-black flex-shrink-0 transition-colors"
+            title={sidebarOpen ? 'Close sidebar' : 'Open sidebar'}
+          >
+            <Bars3Icon className="w-5 h-5" />
+          </button>
           <div className="flex-1 min-w-0">
             <h1 className="text-lg font-bold text-brand-black leading-tight">CodeCompass AI</h1>
             <p className="text-brand-gray-mid text-xs">Your personal career mentor</p>
@@ -423,7 +532,7 @@ export default function AIChatPage() {
                 {dynamicPrompts.map((prompt) => (
                   <button
                     key={prompt}
-                    onClick={() => { sendMessage(prompt) }}
+                    onClick={() => sendMessage(prompt)}
                     className="w-full text-left px-4 py-2.5 rounded-lg border border-brand-yellow/30
                                bg-brand-yellow-pale text-brand-black text-sm
                                hover:bg-brand-yellow hover:border-brand-yellow transition-all"
@@ -435,7 +544,7 @@ export default function AIChatPage() {
             </div>
           )}
 
-          {/* Messages */}
+          {/* Message history */}
           {messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
               {msg.role === 'assistant' && (
@@ -460,7 +569,7 @@ export default function AIChatPage() {
             </div>
           ))}
 
-          {/* Streaming */}
+          {/* Streaming bubble */}
           {isStreaming && (
             <div className="flex justify-start">
               <div className="w-8 h-8 rounded-full bg-brand-yellow flex items-center justify-center mr-2 flex-shrink-0 mt-1">
