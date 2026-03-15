@@ -1,6 +1,6 @@
 /**
  * ResumePage — AI-powered resume creator.
- * Three-panel layout: editor tabs | live preview | ATS scorer.
+ * Home: card grid. Editor: three-panel layout (editor | preview | ATS).
  */
 import { useEffect, useRef, useState, useCallback, useLayoutEffect } from 'react'
 import { useReactToPrint } from 'react-to-print'
@@ -8,8 +8,17 @@ import useResumeStore from '../../stores/resumeStore'
 import ResumePreview from '../../components/resume/ResumePreview'
 import TemplateGallery from '../../components/resume/TemplateGallery'
 import { v4 as uuidv4 } from 'uuid'
+import { TrashIcon } from '@heroicons/react/24/outline'
 
 const SKILL_PLACEHOLDER = { technical: 'e.g. Python, React, SQL', soft: 'e.g. Leadership, Communication', tools: 'e.g. Git, Docker, Figma' }
+
+const TEMPLATE_CARD_COLORS = {
+  modern: '#1A2F5E',
+  classic: '#6B4C2A',
+  minimal: '#374151',
+  executive: '#1E3A5F',
+  'sidebar-blue': '#2563EB',
+}
 
 // ---------------------------------------------------------------------------
 // Main Page
@@ -18,7 +27,7 @@ export default function ResumePage() {
   const {
     resumes, currentResume, isFetching, isSaving, isGenerating,
     bulletSuggestions, summarySuggestions, atsResult,
-    fetchResumes, loadResume, createResume, saveResume, closeResume,
+    fetchResumes, loadResume, createResume, saveResume, deleteResume, closeResume,
     updateCurrentResume, updateSection,
     generateBullets, generateSummary, parseJob, scoreAts,
     clearBulletSuggestions, clearSummarySuggestions, clearAtsResult,
@@ -26,17 +35,16 @@ export default function ResumePage() {
 
   const [activeTab, setActiveTab] = useState('info')
   const [jobDescText, setJobDescText] = useState('')
-  const [bulletModal, setBulletModal] = useState(null) // { expId, jobTitle, achievement }
+  const [bulletModal, setBulletModal] = useState(null)
   const [summaryModal, setSummaryModal] = useState(false)
-  const [summaryForm, setSummaryForm] = useState({ targetRole: '', strengths: '', yearsExp: '' })
+  const [summaryForm, setSummaryForm] = useState({ targetRole: '', strengths: '', yearsExp: 'entry-level' })
   const [showGallery, setShowGallery] = useState(false)
-  const [galleryMode, setGalleryMode] = useState('create') // 'create' | 'edit'
+  const [galleryMode, setGalleryMode] = useState('create')
   const [previewScale, setPreviewScale] = useState(0.72)
 
   const previewRef = useRef(null)
   const previewContainerRef = useRef(null)
 
-  // Dynamic preview scaling — fills available container width
   useLayoutEffect(() => {
     const el = previewContainerRef.current
     if (!el) return
@@ -56,25 +64,21 @@ export default function ResumePage() {
     documentTitle: currentResume?.title || 'Resume',
   })
 
-  // Auto-save debounce
   const saveTimeout = useRef(null)
   const debouncedSave = useCallback(() => {
     clearTimeout(saveTimeout.current)
     saveTimeout.current = setTimeout(() => { saveResume() }, 2000)
   }, [saveResume])
+  useEffect(() => () => clearTimeout(saveTimeout.current), [])
 
   const handleSectionChange = (section, value) => {
     updateSection(section, value)
     debouncedSave()
   }
 
-  // ---------------------------------------------------------------------------
-  // Create / switch template via gallery
-  // ---------------------------------------------------------------------------
   const handleCreate = async ({ templateId, color, title }) => {
     const newResume = await createResume(title || 'My Resume', templateId || 'modern')
     if (newResume && color) {
-      // Store chosen color in content._styling
       useResumeStore.getState().updateSection('_styling', { primaryColor: color })
       setTimeout(() => saveResume(), 300)
     }
@@ -91,9 +95,7 @@ export default function ResumePage() {
     debouncedSave()
   }
 
-  // ---------------------------------------------------------------------------
   // Experience helpers
-  // ---------------------------------------------------------------------------
   const addExperience = () => {
     const exps = currentResume.content.experience || []
     handleSectionChange('experience', [...exps, {
@@ -101,94 +103,63 @@ export default function ResumePage() {
       startDate: '', endDate: '', current: false, bullets: [],
     }])
   }
-
   const updateExperience = (id, patch) => {
-    const exps = (currentResume.content.experience || []).map((e) => e.id === id ? { ...e, ...patch } : e)
-    handleSectionChange('experience', exps)
+    handleSectionChange('experience', (currentResume.content.experience || []).map((e) => e.id === id ? { ...e, ...patch } : e))
   }
-
   const removeExperience = (id) => {
     handleSectionChange('experience', (currentResume.content.experience || []).filter((e) => e.id !== id))
   }
-
   const addBulletToExp = (expId, bullet) => {
-    const exps = (currentResume.content.experience || []).map((e) =>
+    handleSectionChange('experience', (currentResume.content.experience || []).map((e) =>
       e.id === expId ? { ...e, bullets: [...(e.bullets || []), bullet] } : e
-    )
-    handleSectionChange('experience', exps)
+    ))
   }
-
   const removeBullet = (expId, idx) => {
-    const exps = (currentResume.content.experience || []).map((e) =>
+    handleSectionChange('experience', (currentResume.content.experience || []).map((e) =>
       e.id === expId ? { ...e, bullets: e.bullets.filter((_, i) => i !== idx) } : e
-    )
-    handleSectionChange('experience', exps)
+    ))
   }
 
-  // ---------------------------------------------------------------------------
   // Education helpers
-  // ---------------------------------------------------------------------------
   const addEducation = () => {
-    const edus = currentResume.content.education || []
-    handleSectionChange('education', [...edus, {
+    handleSectionChange('education', [...(currentResume.content.education || []), {
       id: uuidv4(), school: '', degree: '', field: '', startDate: '', endDate: '', gpa: '',
     }])
   }
-
   const updateEducation = (id, patch) => {
-    const edus = (currentResume.content.education || []).map((e) => e.id === id ? { ...e, ...patch } : e)
-    handleSectionChange('education', edus)
+    handleSectionChange('education', (currentResume.content.education || []).map((e) => e.id === id ? { ...e, ...patch } : e))
   }
-
   const removeEducation = (id) => {
     handleSectionChange('education', (currentResume.content.education || []).filter((e) => e.id !== id))
   }
 
-  // ---------------------------------------------------------------------------
   // Projects helpers
-  // ---------------------------------------------------------------------------
   const addProject = () => {
-    const projs = currentResume.content.projects || []
-    handleSectionChange('projects', [...projs, { id: uuidv4(), name: '', description: '', tech: [], link: '' }])
+    handleSectionChange('projects', [...(currentResume.content.projects || []), { id: uuidv4(), name: '', description: '', tech: [], link: '' }])
   }
-
   const updateProject = (id, patch) => {
-    const projs = (currentResume.content.projects || []).map((p) => p.id === id ? { ...p, ...patch } : p)
-    handleSectionChange('projects', projs)
+    handleSectionChange('projects', (currentResume.content.projects || []).map((p) => p.id === id ? { ...p, ...patch } : p))
   }
-
   const removeProject = (id) => {
     handleSectionChange('projects', (currentResume.content.projects || []).filter((p) => p.id !== id))
   }
 
-  // ---------------------------------------------------------------------------
   // Certifications helpers
-  // ---------------------------------------------------------------------------
   const addCertification = () => {
-    const certs = currentResume.content.certifications || []
-    handleSectionChange('certifications', [...certs, { id: uuidv4(), name: '', issuer: '', date: '' }])
+    handleSectionChange('certifications', [...(currentResume.content.certifications || []), { id: uuidv4(), name: '', issuer: '', date: '' }])
   }
-
   const updateCertification = (id, patch) => {
-    const certs = (currentResume.content.certifications || []).map((c) => c.id === id ? { ...c, ...patch } : c)
-    handleSectionChange('certifications', certs)
+    handleSectionChange('certifications', (currentResume.content.certifications || []).map((c) => c.id === id ? { ...c, ...patch } : c))
   }
-
   const removeCertification = (id) => {
     handleSectionChange('certifications', (currentResume.content.certifications || []).filter((c) => c.id !== id))
   }
 
-  // ---------------------------------------------------------------------------
-  // Skills helper
-  // ---------------------------------------------------------------------------
   const updateSkillList = (type, raw) => {
     const arr = raw.split(',').map((s) => s.trim()).filter(Boolean)
     handleSectionChange('skills', { ...(currentResume.content.skills || {}), [type]: arr })
   }
 
-  // ---------------------------------------------------------------------------
-  // ATS
-  // ---------------------------------------------------------------------------
   const handleAnalyzeJob = async () => {
     if (!jobDescText.trim()) return
     const result = await parseJob(jobDescText)
@@ -198,54 +169,45 @@ export default function ResumePage() {
   }
 
   // ---------------------------------------------------------------------------
-  // Render
+  // Loading
   // ---------------------------------------------------------------------------
-  if (isFetching && !currentResume && resumes.length === 0) {
+  if (isFetching && resumes.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-gray-400">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-brand-yellow border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-          <p>Loading resumes...</p>
+          <p className="text-sm">Loading resumes...</p>
         </div>
       </div>
     )
   }
 
-  return (
-    <div className="flex flex-col h-full overflow-hidden">
-      {/* Top bar */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 bg-white flex-shrink-0">
-        <h1 className="text-lg font-bold text-brand-black">Resume Builder</h1>
-        <span className="text-gray-300">|</span>
-
-        {/* Resume list tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto flex-1">
-          {resumes.map((r) => (
-            <button
-              key={r.id}
-              onClick={() => loadResume(r.id)}
-              className={`px-3 py-1.5 text-xs rounded-md whitespace-nowrap transition-all font-medium ${
-                currentResume?.id === r.id
-                  ? 'bg-brand-yellow text-brand-black'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {r.title}
-            </button>
-          ))}
-
+  // ---------------------------------------------------------------------------
+  // EDITOR VIEW
+  // ---------------------------------------------------------------------------
+  if (currentResume) {
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        {/* Editor top bar */}
+        <div className="flex items-center gap-3 px-4 py-2.5 border-b border-gray-200 bg-white flex-shrink-0">
           <button
-            onClick={() => { setGalleryMode('create'); setShowGallery(true) }}
-            className="px-3 py-1.5 text-xs rounded-md border border-dashed border-gray-300 text-gray-400 hover:border-brand-yellow hover:text-brand-yellow transition-all whitespace-nowrap"
+            onClick={closeResume}
+            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors font-medium flex-shrink-0"
           >
-            + New Resume
+            ← Back
           </button>
-        </div>
-
-        {/* Actions */}
-        {currentResume && (
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {/* Auto-save status */}
+          <div className="w-px h-4 bg-gray-200 flex-shrink-0" />
+          <span className="text-sm font-semibold text-gray-900 truncate max-w-[200px]">{currentResume.title}</span>
+          <span
+            className="text-[10px] font-medium px-2 py-0.5 rounded-full capitalize flex-shrink-0"
+            style={{
+              backgroundColor: `${currentResume.content?._styling?.primaryColor || TEMPLATE_CARD_COLORS[currentResume.template_name] || '#1A2F5E'}15`,
+              color: currentResume.content?._styling?.primaryColor || TEMPLATE_CARD_COLORS[currentResume.template_name] || '#1A2F5E',
+            }}
+          >
+            {currentResume.template_name}
+          </span>
+          <div className="ml-auto flex items-center gap-2 flex-shrink-0">
             <span className={`text-[10px] font-medium transition-colors ${isSaving ? 'text-amber-500' : 'text-green-500'}`}>
               {isSaving ? '● Saving...' : '✓ Saved'}
             </span>
@@ -262,41 +224,14 @@ export default function ResumePage() {
             >
               Export PDF
             </button>
-            <button
-              onClick={closeResume}
-              className="text-xs px-2 py-1.5 text-gray-400 hover:text-gray-600 transition-colors"
-              title="Close editor (resume is saved)"
-            >
-              ✕
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Main content */}
-      {!currentResume ? (
-        <div className="flex-1 flex items-center justify-center text-gray-400">
-          <div className="text-center">
-            <div className="text-5xl mb-4">📄</div>
-            <p className="text-gray-500 font-medium mb-2">No resume selected</p>
-            <p className="text-sm text-gray-400 mb-4">Create a new resume or select one from the top bar</p>
-            <button
-              onClick={() => { setGalleryMode('create'); setShowGallery(true) }}
-              className="px-4 py-2 bg-brand-yellow text-brand-black font-semibold rounded-lg hover:bg-yellow-400 transition-colors text-sm"
-            >
-              + Create New Resume
-            </button>
           </div>
         </div>
-      ) : (
+
+        {/* 3-panel editor */}
         <div className="flex flex-1 overflow-hidden">
-          {/* ------------------------------------------------------------------ */}
           {/* LEFT: Editor */}
-          {/* ------------------------------------------------------------------ */}
           <div className="w-[340px] flex-shrink-0 border-r border-gray-200 flex flex-col overflow-hidden">
-            {/* Template + tab nav */}
             <div className="px-4 pt-3 pb-0 border-b border-gray-100 bg-white flex-shrink-0">
-              {/* Template selector */}
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-xs text-gray-500 font-medium">Template:</span>
                 <span className="text-xs font-semibold text-gray-800 capitalize">{currentResume.template_name}</span>
@@ -307,8 +242,6 @@ export default function ResumePage() {
                   Change Template
                 </button>
               </div>
-
-              {/* Tab nav */}
               <div className="flex gap-0 overflow-x-auto">
                 {[
                   { id: 'info', label: 'Info' },
@@ -333,8 +266,6 @@ export default function ResumePage() {
                 ))}
               </div>
             </div>
-
-            {/* Tab content */}
             <div className="flex-1 overflow-y-auto px-4 py-4">
               {activeTab === 'info' && <InfoTab resume={currentResume} onChange={handleSectionChange} />}
               {activeTab === 'summary' && (
@@ -356,10 +287,7 @@ export default function ResumePage() {
                   onRemove={removeExperience}
                   onAddBullet={addBulletToExp}
                   onRemoveBullet={removeBullet}
-                  onOpenBulletAI={(expId, jobTitle) => {
-                    clearBulletSuggestions()
-                    setBulletModal({ expId, jobTitle, achievement: '' })
-                  }}
+                  onOpenBulletAI={(expId, jobTitle) => { clearBulletSuggestions(); setBulletModal({ expId, jobTitle, achievement: '' }) }}
                   bulletSuggestions={bulletSuggestions}
                   bulletModal={bulletModal}
                   isGenerating={isGenerating}
@@ -369,43 +297,25 @@ export default function ResumePage() {
                 />
               )}
               {activeTab === 'education' && (
-                <EducationTab
-                  resume={currentResume}
-                  onAdd={addEducation}
-                  onUpdate={updateEducation}
-                  onRemove={removeEducation}
-                />
+                <EducationTab resume={currentResume} onAdd={addEducation} onUpdate={updateEducation} onRemove={removeEducation} />
               )}
               {activeTab === 'skills' && (
                 <SkillsTab resume={currentResume} onUpdate={updateSkillList} />
               )}
               {activeTab === 'projects' && (
-                <ProjectsTab
-                  resume={currentResume}
-                  onAdd={addProject}
-                  onUpdate={updateProject}
-                  onRemove={removeProject}
-                />
+                <ProjectsTab resume={currentResume} onAdd={addProject} onUpdate={updateProject} onRemove={removeProject} />
               )}
               {activeTab === 'certifications' && (
-                <CertsTab
-                  resume={currentResume}
-                  onAdd={addCertification}
-                  onUpdate={updateCertification}
-                  onRemove={removeCertification}
-                />
+                <CertsTab resume={currentResume} onAdd={addCertification} onUpdate={updateCertification} onRemove={removeCertification} />
               )}
             </div>
           </div>
 
-          {/* ------------------------------------------------------------------ */}
-          {/* CENTER: Live Preview — dynamic scale fills panel width */}
-          {/* ------------------------------------------------------------------ */}
+          {/* CENTER: Live Preview */}
           <div className="flex-1 overflow-y-auto bg-[#e0e2e6] p-5 flex flex-col">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 text-center mb-3 flex-shrink-0">
               Live Preview
             </p>
-            {/* Container measures available width and drives scale */}
             <div ref={previewContainerRef} className="flex-shrink-0 w-full">
               <div
                 className="shadow-2xl"
@@ -421,17 +331,13 @@ export default function ResumePage() {
             </div>
           </div>
 
-          {/* ------------------------------------------------------------------ */}
           {/* RIGHT: ATS Panel */}
-          {/* ------------------------------------------------------------------ */}
           <div className="w-[280px] flex-shrink-0 border-l border-gray-200 bg-white flex flex-col overflow-hidden">
             <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
               <h3 className="text-sm font-bold text-gray-800">ATS Score</h3>
               <p className="text-xs text-gray-400">Paste a job description to analyze your match</p>
             </div>
-
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-              {/* Job description input */}
               <div>
                 <textarea
                   value={jobDescText}
@@ -447,11 +353,8 @@ export default function ResumePage() {
                   {isGenerating ? 'Analyzing...' : 'Analyze Match'}
                 </button>
               </div>
-
-              {/* ATS Score display */}
               {atsResult && (
                 <div className="space-y-3">
-                  {/* Score circle */}
                   <div className="text-center">
                     <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full border-4 font-bold text-xl ${
                       atsResult.score >= 70 ? 'border-green-400 text-green-600' :
@@ -462,8 +365,6 @@ export default function ResumePage() {
                     </div>
                     <p className="text-xs text-gray-500 mt-1">ATS Match Score</p>
                   </div>
-
-                  {/* Matched keywords */}
                   {atsResult.matchedKeywords?.length > 0 && (
                     <div>
                       <p className="text-xs font-semibold text-green-700 mb-1.5">✓ Matched ({atsResult.matchedKeywords.length})</p>
@@ -474,8 +375,6 @@ export default function ResumePage() {
                       </div>
                     </div>
                   )}
-
-                  {/* Missing keywords */}
                   {atsResult.missingKeywords?.length > 0 && (
                     <div>
                       <p className="text-xs font-semibold text-red-600 mb-1.5">✗ Missing ({atsResult.missingKeywords.length})</p>
@@ -486,8 +385,6 @@ export default function ResumePage() {
                       </div>
                     </div>
                   )}
-
-                  {/* AI suggestions */}
                   {atsResult.suggestions?.length > 0 && (
                     <div>
                       <p className="text-xs font-semibold text-gray-700 mb-1.5">💡 Suggestions</p>
@@ -498,92 +395,198 @@ export default function ResumePage() {
                       </ul>
                     </div>
                   )}
-
                   <button onClick={clearAtsResult} className="text-xs text-gray-400 hover:text-gray-600 w-full text-center">Clear results</button>
                 </div>
               )}
-
               {!atsResult && !isGenerating && (
-                <p className="text-xs text-gray-400 text-center">
-                  Your ATS match score and keyword analysis will appear here.
-                </p>
+                <p className="text-xs text-gray-400 text-center">Your ATS match score and keyword analysis will appear here.</p>
               )}
             </div>
           </div>
         </div>
-      )}
+
+        {/* Template Gallery Modal */}
+        {showGallery && (
+          <TemplateGallery
+            mode={galleryMode}
+            initialTemplate={currentResume?.template_name || 'modern'}
+            initialColor={currentResume?.content?._styling?.primaryColor || '#1A2F5E'}
+            onSelect={galleryMode === 'create' ? handleCreate : handleApplyTemplate}
+            onClose={() => setShowGallery(false)}
+          />
+        )}
+
+        {/* Summary AI Modal */}
+        {summaryModal && (
+          <Modal title="Generate Professional Summary" onClose={() => { setSummaryModal(false); clearSummarySuggestions() }}>
+            <div className="space-y-3">
+              <Field label="Target Role">
+                <input type="text" value={summaryForm.targetRole} onChange={(e) => setSummaryForm({ ...summaryForm, targetRole: e.target.value })} placeholder="e.g. Full Stack Developer" className="input text-sm" />
+              </Field>
+              <Field label="Key Strengths (comma separated)">
+                <input type="text" value={summaryForm.strengths} onChange={(e) => setSummaryForm({ ...summaryForm, strengths: e.target.value })} placeholder="e.g. React, Django, problem-solving" className="input text-sm" />
+              </Field>
+              <Field label="Experience Level">
+                <select value={summaryForm.yearsExp} onChange={(e) => setSummaryForm({ ...summaryForm, yearsExp: e.target.value })} className="input text-sm">
+                  <option value="entry-level">Entry-level / Fresh grad</option>
+                  <option value="1-2 years">1-2 years</option>
+                  <option value="3-5 years">3-5 years</option>
+                  <option value="5+ years">5+ years</option>
+                </select>
+              </Field>
+              <button
+                onClick={() => generateSummary(summaryForm.targetRole, summaryForm.strengths.split(',').map(s => s.trim()), summaryForm.yearsExp)}
+                disabled={isGenerating || !summaryForm.targetRole}
+                className="w-full py-2 bg-brand-yellow text-brand-black font-semibold rounded-lg text-sm disabled:opacity-50"
+              >
+                {isGenerating ? 'Generating...' : '✨ Generate Summaries'}
+              </button>
+              {summarySuggestions.length > 0 && (
+                <div className="space-y-2 mt-3">
+                  <p className="text-xs font-semibold text-gray-600">Pick a variation:</p>
+                  {summarySuggestions.map((s, i) => (
+                    <button
+                      key={i}
+                      onClick={() => { handleSectionChange('summary', s.text); setSummaryModal(false); clearSummarySuggestions() }}
+                      className="w-full text-left text-xs p-3 border border-gray-200 rounded-lg hover:border-brand-yellow hover:bg-yellow-50 transition-all"
+                    >
+                      <span className="text-gray-400 uppercase text-[10px] font-bold block mb-1">{s.tone}</span>
+                      {s.text}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </Modal>
+        )}
+      </div>
+    )
+  }
+
+  // ---------------------------------------------------------------------------
+  // HOME VIEW — Card Grid
+  // ---------------------------------------------------------------------------
+  return (
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-white flex-shrink-0">
+        <div>
+          <h1 className="text-xl font-bold text-brand-black">Resume Builder</h1>
+          <p className="text-xs text-gray-400 mt-0.5">
+            {resumes.length > 0
+              ? `${resumes.length} resume${resumes.length !== 1 ? 's' : ''} · AI-powered`
+              : 'AI-powered resume creator'}
+          </p>
+        </div>
+        <button
+          onClick={() => { setGalleryMode('create'); setShowGallery(true) }}
+          className="flex items-center gap-2 px-4 py-2 bg-brand-yellow text-brand-black font-semibold rounded-lg hover:bg-yellow-400 transition-colors text-sm"
+        >
+          + New Resume
+        </button>
+      </div>
+
+      {/* Card grid */}
+      <div className="flex-1 overflow-y-auto p-6">
+        {resumes.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center pb-20">
+            <div className="w-20 h-20 bg-gray-100 rounded-3xl flex items-center justify-center mb-5 text-4xl">📄</div>
+            <h2 className="text-lg font-semibold text-gray-700 mb-1">No resumes yet</h2>
+            <p className="text-sm text-gray-400 mb-6 max-w-xs">Create your first professional resume with AI-powered tools and beautiful templates</p>
+            <button
+              onClick={() => { setGalleryMode('create'); setShowGallery(true) }}
+              className="px-5 py-2.5 bg-brand-yellow text-brand-black font-semibold rounded-lg hover:bg-yellow-400 transition-colors"
+            >
+              + Create New Resume
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+            {resumes.map((r) => (
+              <ResumeCard
+                key={r.id}
+                resume={r}
+                onOpen={() => loadResume(r.id)}
+                onDelete={() => deleteResume(r.id)}
+              />
+            ))}
+            {/* Add new card */}
+            <button
+              onClick={() => { setGalleryMode('create'); setShowGallery(true) }}
+              className="border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-3 text-gray-400 hover:border-brand-yellow hover:text-brand-yellow transition-all min-h-[220px] group"
+            >
+              <div className="w-10 h-10 rounded-full border-2 border-current flex items-center justify-center text-2xl font-light">+</div>
+              <span className="text-sm font-medium">New Resume</span>
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Template Gallery Modal */}
       {showGallery && (
         <TemplateGallery
-          mode={galleryMode}
-          initialTemplate={currentResume?.template_name || 'modern'}
-          initialColor={currentResume?.content?._styling?.primaryColor || '#1A2F5E'}
-          onSelect={galleryMode === 'create' ? handleCreate : handleApplyTemplate}
+          mode="create"
+          initialTemplate="modern"
+          initialColor="#1A2F5E"
+          onSelect={handleCreate}
           onClose={() => setShowGallery(false)}
         />
       )}
+    </div>
+  )
+}
 
-      {/* Summary AI Modal */}
-      {summaryModal && (
-        <Modal title="Generate Professional Summary" onClose={() => { setSummaryModal(false); clearSummarySuggestions() }}>
-          <div className="space-y-3">
-            <Field label="Target Role">
-              <input
-                type="text"
-                value={summaryForm.targetRole}
-                onChange={(e) => setSummaryForm({ ...summaryForm, targetRole: e.target.value })}
-                placeholder="e.g. Full Stack Developer"
-                className="input text-sm"
-              />
-            </Field>
-            <Field label="Key Strengths (comma separated)">
-              <input
-                type="text"
-                value={summaryForm.strengths}
-                onChange={(e) => setSummaryForm({ ...summaryForm, strengths: e.target.value })}
-                placeholder="e.g. React, Django, problem-solving"
-                className="input text-sm"
-              />
-            </Field>
-            <Field label="Experience Level">
-              <select
-                value={summaryForm.yearsExp}
-                onChange={(e) => setSummaryForm({ ...summaryForm, yearsExp: e.target.value })}
-                className="input text-sm"
-              >
-                <option value="entry-level">Entry-level / Fresh grad</option>
-                <option value="1-2 years">1-2 years</option>
-                <option value="3-5 years">3-5 years</option>
-                <option value="5+ years">5+ years</option>
-              </select>
-            </Field>
-            <button
-              onClick={() => generateSummary(summaryForm.targetRole, summaryForm.strengths.split(',').map(s => s.trim()), summaryForm.yearsExp)}
-              disabled={isGenerating || !summaryForm.targetRole}
-              className="w-full py-2 bg-brand-yellow text-brand-black font-semibold rounded-lg text-sm disabled:opacity-50"
-            >
-              {isGenerating ? 'Generating...' : '✨ Generate Summaries'}
-            </button>
+// ---------------------------------------------------------------------------
+// Resume Card
+// ---------------------------------------------------------------------------
+function ResumeCard({ resume, onOpen, onDelete }) {
+  const color = resume.content?._styling?.primaryColor || TEMPLATE_CARD_COLORS[resume.template_name] || '#1A2F5E'
+  const rawDate = resume.updatedAt || resume.updated_at
+  const updatedAt = rawDate
+    ? new Date(rawDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
+    : '—'
 
-            {summarySuggestions.length > 0 && (
-              <div className="space-y-2 mt-3">
-                <p className="text-xs font-semibold text-gray-600">Pick a variation:</p>
-                {summarySuggestions.map((s, i) => (
-                  <button
-                    key={i}
-                    onClick={() => { handleSectionChange('summary', s.text); setSummaryModal(false); clearSummarySuggestions() }}
-                    className="w-full text-left text-xs p-3 border border-gray-200 rounded-lg hover:border-brand-yellow hover:bg-yellow-50 transition-all"
-                  >
-                    <span className="text-gray-400 uppercase text-[10px] font-bold block mb-1">{s.tone}</span>
-                    {s.text}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </Modal>
-      )}
+  return (
+    <div
+      className="group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden cursor-pointer"
+      onClick={onOpen}
+    >
+      {/* Live preview thumbnail — same scale trick as TemplateGallery */}
+      <div className="relative overflow-hidden bg-white border-b border-gray-100" style={{ height: '200px' }}>
+        <div
+          style={{
+            transform: 'scale(0.27)',
+            transformOrigin: 'top left',
+            width: '370%',
+            pointerEvents: 'none',
+          }}
+        >
+          <ResumePreview resume={resume} />
+        </div>
+
+        {/* Delete button — visible on hover */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete() }}
+          className="absolute top-2 right-2 w-7 h-7 bg-white rounded-lg shadow border border-gray-200 text-gray-400 hover:text-red-500 hover:border-red-200 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center"
+          title="Delete resume"
+        >
+          <TrashIcon className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Info bar */}
+      <div className="px-3 py-2.5 border-t border-gray-100">
+        <p className="text-sm font-semibold text-gray-900 truncate leading-tight">{resume.title}</p>
+        <div className="flex items-center justify-between mt-1">
+          <span
+            className="text-[10px] font-medium px-2 py-0.5 rounded-full capitalize"
+            style={{ backgroundColor: `${color}18`, color }}
+          >
+            {resume.template_name}
+          </span>
+          <span className="text-[10px] text-gray-400">{updatedAt}</span>
+        </div>
+      </div>
     </div>
   )
 }
@@ -620,7 +623,7 @@ function InfoTab({ resume, onChange }) {
   )
 }
 
-function SummaryTab({ resume, onChange, isGenerating: _isGenerating, suggestions: _suggestions, onGenerate, onPickSuggestion: _onPickSuggestion, onClear: _onClear }) {
+function SummaryTab({ resume, onChange, onGenerate }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -639,9 +642,7 @@ function SummaryTab({ resume, onChange, isGenerating: _isGenerating, suggestions
         className="w-full text-sm border border-gray-200 rounded-lg p-2.5 resize-none focus:outline-none focus:border-brand-yellow"
         placeholder="Write a 2-3 sentence professional summary, or use AI to generate one..."
       />
-      <p className="text-xs text-gray-400">
-        Tip: A good summary states your role, key strengths, and what you bring to an employer.
-      </p>
+      <p className="text-xs text-gray-400">Tip: A good summary states your role, key strengths, and what you bring to an employer.</p>
     </div>
   )
 }
@@ -671,17 +672,10 @@ function ExperienceTab({ resume, onAdd, onUpdate, onRemove, onAddBullet, onRemov
             </Field>
           </div>
           <Field label="Location"><input type="text" value={exp.location || ''} onChange={(e) => onUpdate(exp.id, { location: e.target.value })} className="input text-xs" placeholder="Manila, Philippines" /></Field>
-
-          {/* Bullets */}
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs text-gray-500">Bullet Points</label>
-              <button
-                onClick={() => onOpenBulletAI(exp.id, exp.title)}
-                className="text-xs text-brand-black font-medium hover:text-yellow-600"
-              >
-                ✨ AI Bullets
-              </button>
+              <button onClick={() => onOpenBulletAI(exp.id, exp.title)} className="text-xs text-brand-black font-medium hover:text-yellow-600">✨ AI Bullets</button>
             </div>
             <ul className="space-y-1 mb-2">
               {(exp.bullets || []).map((b, i) => (
@@ -694,8 +688,6 @@ function ExperienceTab({ resume, onAdd, onUpdate, onRemove, onAddBullet, onRemov
             </ul>
             <AddBulletInline onAdd={(bullet) => onAddBullet(exp.id, bullet)} />
           </div>
-
-          {/* Bullet AI modal (inline) */}
           {bulletModal?.expId === exp.id && (
             <div className="mt-2 border border-yellow-200 rounded-lg p-3 bg-yellow-50 space-y-2">
               <p className="text-xs font-semibold text-gray-700">✨ AI Bullet Generator</p>
@@ -714,7 +706,7 @@ function ExperienceTab({ resume, onAdd, onUpdate, onRemove, onAddBullet, onRemov
                 >
                   {isGenerating ? 'Generating...' : 'Generate'}
                 </button>
-                <button onClick={onCloseBulletModal} className="text-xs text-gray-400 hover:text-gray-600 px-2">Cancel</button>
+                <button onClick={() => { setAchievementText(''); onCloseBulletModal() }} className="text-xs text-gray-400 hover:text-gray-600 px-2">Cancel</button>
               </div>
               {bulletSuggestions.length > 0 && (
                 <div className="space-y-1.5">
@@ -734,7 +726,6 @@ function ExperienceTab({ resume, onAdd, onUpdate, onRemove, onAddBullet, onRemov
           )}
         </div>
       ))}
-
       <button onClick={onAdd} className="w-full text-xs py-2 border border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-brand-yellow hover:text-brand-yellow transition-all">
         + Add Experience
       </button>

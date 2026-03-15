@@ -56,6 +56,55 @@ const useRoadmapStore = create((set, get) => ({
     }
   },
 
+  applyEditProposals: async (proposals) => {
+    const list = Array.isArray(proposals) ? proposals : [proposals]
+    const isPlaceholder = (v) => v == null || String(v).trim() === '' || String(v).trim() === '?'
+    const VALID_ACTIONS = ['edit_node', 'edit_roadmap', 'add_node', 'remove_node']
+
+    // Validate all proposals before executing any
+    for (const p of list) {
+      const { action, roadmap_id, node_id, changes } = p
+      if (!VALID_ACTIONS.includes(action) || isPlaceholder(roadmap_id)) {
+        toast.error('This proposal is incomplete — ask the AI to clarify.')
+        return false
+      }
+      if (['edit_node', 'remove_node'].includes(action) && isPlaceholder(node_id)) {
+        toast.error('This proposal is incomplete — ask the AI to clarify.')
+        return false
+      }
+      if (['edit_node', 'edit_roadmap', 'add_node'].includes(action)) {
+        if (!changes || typeof changes !== 'object' || Object.keys(changes).length === 0
+            || Object.values(changes).some(isPlaceholder)) {
+          toast.error('This proposal is incomplete — ask the AI to clarify.')
+          return false
+        }
+      }
+    }
+
+    try {
+      // Execute all actions sequentially
+      for (const p of list) {
+        const { action, roadmap_id, node_id, changes } = p
+        if (action === 'edit_roadmap') {
+          await roadmapApi.editRoadmapMeta(roadmap_id, changes)
+        } else if (action === 'edit_node') {
+          await roadmapApi.editNodeContent(roadmap_id, node_id, changes)
+        } else if (action === 'add_node') {
+          await roadmapApi.addNode(roadmap_id, changes)
+        } else if (action === 'remove_node') {
+          await roadmapApi.removeNode(roadmap_id, node_id)
+        }
+      }
+      // Single re-fetch after all actions complete
+      await get().fetchRoadmap(list[0].roadmap_id)
+      toast.success(list.length > 1 ? `${list.length} changes applied!` : 'Roadmap updated!')
+      return true
+    } catch {
+      toast.error('Could not apply that change.')
+      return false
+    }
+  },
+
   updateNodeStatus: async (roadmapId, nodeId, newStatus) => {
     try {
       const { data } = await roadmapApi.updateNodeStatus(roadmapId, nodeId, newStatus)
@@ -67,7 +116,9 @@ const useRoadmapStore = create((set, get) => ({
         const prevStatuses = Object.fromEntries(
           (get().currentRoadmap?.nodes ?? []).map((n) => [n.id, n.status])
         )
-        toast.success(`+${updatedNode.xpReward} XP! Node completed!`)
+        if (data.xpAwarded) {
+          toast.success(`+${updatedNode.xpReward} XP! Node completed!`)
+        }
         const refreshed = await get().fetchRoadmap(roadmapId)
         const newlyUnlocked = refreshed?.nodes?.filter(
           (n) => prevStatuses[n.id] === 'locked' && n.status === 'available'

@@ -84,11 +84,10 @@ function getDynamicPrompts(modeKey, user, roadmap, summary) {
       return [
         currentNode ? `What should I focus on after finishing "${currentNode}"?`
                     : `What should I work on next in ${roadmapTitle}?`,
-        currentNode ? `Explain why "${currentNode}" is important for my career`
-                    : 'Explain the structure of my roadmap',
         currentNode ? `I'm stuck on "${currentNode}" — how do I approach it?`
                     : 'How do I stay consistent and avoid burnout on my roadmap?',
-        `How long will it take to complete ${roadmapTitle}?`,
+        '✏️ Can you rename one of my nodes to something clearer?',
+        '➕ Add a new topic to my roadmap',
       ]
     case 'job':
       return [
@@ -305,15 +304,110 @@ function SessionItem({ session, isActive, onSelect, onRename, onDelete, deleting
 }
 
 // ---------------------------------------------------------------------------
+// Builds a natural confirmation message from successfully applied proposals
+// ---------------------------------------------------------------------------
+function buildConfirmation(proposals) {
+  const list = Array.isArray(proposals) ? proposals : [proposals]
+  if (list.length === 1) {
+    const summary = list[0].summary || 'Your roadmap has been updated.'
+    return `Done! ${summary} Is there anything else you'd like to change?`
+  }
+  const bullets = list.map((p) => `- ${p.summary || 'Change applied'}`).join('\n')
+  return `Done! Applied ${list.length} changes:\n${bullets}\n\nIs there anything else you'd like to change?`
+}
+
+// ---------------------------------------------------------------------------
+// Validates an array of ROADMAP_EDIT proposals all have real (non-placeholder) values
+// ---------------------------------------------------------------------------
+function isCompleteProposals(arr) {
+  if (!arr || !Array.isArray(arr) || arr.length === 0) return false
+  const ph = (v) => v == null || String(v).trim() === '' || String(v).trim() === '?'
+  const VALID = ['edit_node', 'edit_roadmap', 'add_node', 'remove_node']
+  return arr.every((p) => {
+    if (!p || !VALID.includes(p.action) || ph(p.roadmap_id) || ph(p.summary)) return false
+    if (['edit_node', 'remove_node'].includes(p.action) && ph(p.node_id)) return false
+    if (['edit_node', 'edit_roadmap', 'add_node'].includes(p.action)) {
+      if (!p.changes || Object.keys(p.changes).length === 0) return false
+      if (Object.values(p.changes).some((v) => ph(v))) return false
+    }
+    return true
+  })
+}
+
+// ---------------------------------------------------------------------------
+// Roadmap edit proposal card — shown below assistant bubbles when AI proposes changes
+// ---------------------------------------------------------------------------
+function RoadmapEditProposalCard({ proposals, messageId, onApply, onDismiss }) {
+  const [applying, setApplying] = useState(false)
+  const pushLocalMessage = useChatStore((s) => s.pushLocalMessage)
+  const isDangerous = proposals.some((p) => p.action === 'remove_node')
+
+  const handleApply = async () => {
+    setApplying(true)
+    const ok = await onApply(proposals)
+    if (ok) {
+      pushLocalMessage(buildConfirmation(proposals))
+      onDismiss(messageId)
+    } else {
+      setApplying(false)
+    }
+  }
+
+  return (
+    <div className="mt-2 rounded-lg border border-amber-400/40 bg-amber-50 p-3 text-sm max-w-[75%]">
+      <p className="font-medium text-amber-800 mb-1 text-xs uppercase tracking-wide">
+        {proposals.length > 1
+          ? `Proposed roadmap changes (${proposals.length})`
+          : 'Proposed roadmap change'}
+      </p>
+      {proposals.length === 1 ? (
+        <p className="text-gray-700 mb-3 text-sm">{proposals[0].summary}</p>
+      ) : (
+        <ul className="text-gray-700 mb-3 text-sm list-disc list-inside space-y-0.5">
+          {proposals.map((p, i) => (
+            <li key={i}>{p.summary}</li>
+          ))}
+        </ul>
+      )}
+      {isDangerous && (
+        <div className="mb-3 rounded border border-red-300 bg-red-50 px-2 py-1.5 text-xs text-red-700">
+          This will permanently delete a node. This cannot be undone.
+        </div>
+      )}
+      <div className="flex gap-2">
+        <button
+          onClick={handleApply}
+          disabled={applying}
+          className={`px-3 py-1 rounded text-white text-xs font-medium disabled:opacity-50 transition-colors
+            ${isDangerous
+              ? 'bg-red-500 hover:bg-red-600'
+              : 'bg-amber-500 hover:bg-amber-600'}`}
+        >
+          {applying ? 'Applying…' : isDangerous ? 'Confirm & Apply' : 'Apply'}
+        </button>
+        <button
+          onClick={() => onDismiss(messageId)}
+          className="px-3 py-1 rounded border border-gray-300 text-xs text-gray-600
+                     hover:bg-gray-100 transition-colors"
+        >
+          Dismiss
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 export default function AIChatPage() {
   const { user } = useAuthStore()
-  const { roadmaps, fetchRoadmaps } = useRoadmapStore()
+  const { roadmaps, fetchRoadmaps, applyEditProposals } = useRoadmapStore()
   const {
-    sessions, messages, streamingContent, isStreaming,
-    fetchSessions, createSession, selectSession, sendMessage,
-    disconnectWebSocket, deleteSession, renameSession,
+    sessions, sessionsLoading, messages, streamingContent, isStreaming, wsConnected,
+    fetchSessions, selectSession, sendMessage,
+    disconnectWebSocket, deleteSession, renameSession, clearCurrentSession,
+    dismissEditProposals, chatLanguage, setChatLanguage,
   } = useChatStore()
 
   const [input, setInput] = useState('')
@@ -339,21 +433,17 @@ export default function AIChatPage() {
     if (!visibleModes.find((m) => m.key === activeMode)) setActiveMode('general')
   }, [visibleModes]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Mount: fetch onboarding summary + sessions + roadmaps + start fresh session
+  // Mount: fetch data only — sessions are created lazily when user first sends a message
   useEffect(() => {
     if (initialized.current) return
     initialized.current = true
 
-    // Fetch real onboarding summary from API
     onboardingApi.status().then(({ data }) => {
       if (data?.onboarding_summary) setOnboardingSummary(data.onboarding_summary)
     }).catch(() => {})
 
     fetchSessions()
     fetchRoadmaps()
-    createSession('general').then((session) => {
-      if (session) selectSession(session.sessionId)
-    })
     return () => { disconnectWebSocket() }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -362,9 +452,11 @@ export default function AIChatPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, streamingContent])
 
+  const activeContextType = ALL_MODES.find((m) => m.key === activeMode)?.contextType || 'general'
+
   const handleSend = () => {
     if (!input.trim() || isStreaming) return
-    sendMessage(input.trim())
+    sendMessage(input.trim(), activeContextType)
     setInput('')
   }
 
@@ -372,44 +464,29 @@ export default function AIChatPage() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
   }
 
-  const handleModeSwitch = async (modeKey) => {
+  const handleModeSwitch = (modeKey) => {
     if (modeKey === activeMode) return
     setActiveMode(modeKey)
-    const mode = ALL_MODES.find((m) => m.key === modeKey)
-    disconnectWebSocket()
-    const session = await createSession(mode.contextType)
-    if (session) {
-      await fetchSessions()
-      selectSession(session.sessionId)
-    }
+    clearCurrentSession()
   }
 
-  const handleNewChat = async () => {
-    const mode = ALL_MODES.find((m) => m.key === activeMode)
-    disconnectWebSocket()
-    const session = await createSession(mode?.contextType || 'general')
-    if (session) {
-      await fetchSessions()
-      selectSession(session.sessionId)
-    }
+  const handleNewChat = () => {
+    clearCurrentSession()
   }
 
   const handleDeleteSession = useCallback(async (sessionId) => {
     setDeletingId(sessionId)
     await deleteSession(sessionId)
     setDeletingId(null)
-    if (sessionId === currentSessionId) {
-      const mode = ALL_MODES.find((m) => m.key === activeMode)
-      const session = await createSession(mode?.contextType || 'general')
-      if (session) selectSession(session.sessionId)
-    }
-  }, [currentSessionId, activeMode, deleteSession, createSession, selectSession])
+    // Store already clears currentSession + disconnects WS if it was the active session
+  }, [deleteSession])
 
   const handleRenameSession = useCallback((sessionId, title) => {
     renameSession(sessionId, title)
   }, [renameSession])
 
   const handleSelectSession = (session) => {
+    if (isStreaming) return  // Block switching while AI is mid-response to prevent stream mixing
     const mode = ALL_MODES.find((m) => m.contextType === session.contextType)
     if (mode && visibleModes.find((m) => m.key === mode.key)) setActiveMode(mode.key)
     selectSession(session.sessionId)
@@ -445,7 +522,16 @@ export default function AIChatPage() {
 
         {/* Session list */}
         <div className="flex-1 overflow-y-auto py-1">
-          {sessionGroups.length === 0 ? (
+          {sessionsLoading ? (
+            <div className="px-3 pt-3 space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center gap-2 px-1 py-2">
+                  <div className="w-5 h-5 rounded bg-gray-200 animate-pulse flex-shrink-0" />
+                  <div className="h-3 bg-gray-200 animate-pulse rounded flex-1" style={{ width: `${60 + i * 12}%` }} />
+                </div>
+              ))}
+            </div>
+          ) : sessionGroups.length === 0 ? (
             <p className="text-xs text-brand-gray-mid text-center py-6 px-3 whitespace-nowrap">
               No previous chats yet
             </p>
@@ -518,6 +604,20 @@ export default function AIChatPage() {
           ))}
         </div>
 
+        {/* Disconnected banner — only shows when session exists but WS dropped */}
+        {currentSessionId && !wsConnected && !isStreaming && (
+          <div className="mx-4 mt-2 flex items-center justify-between gap-2 px-3 py-2
+                          rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-700">
+            <span>Connection lost.</span>
+            <button
+              onClick={() => selectSession(currentSessionId)}
+              className="font-medium underline hover:no-underline"
+            >
+              Reconnect
+            </button>
+          </div>
+        )}
+
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
 
@@ -532,7 +632,7 @@ export default function AIChatPage() {
                 {dynamicPrompts.map((prompt) => (
                   <button
                     key={prompt}
-                    onClick={() => sendMessage(prompt)}
+                    onClick={() => sendMessage(prompt, activeContextType)}
                     className="w-full text-left px-4 py-2.5 rounded-lg border border-brand-yellow/30
                                bg-brand-yellow-pale text-brand-black text-sm
                                hover:bg-brand-yellow hover:border-brand-yellow transition-all"
@@ -546,24 +646,36 @@ export default function AIChatPage() {
 
           {/* Message history */}
           {messages.map((msg, i) => (
-            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              {msg.role === 'assistant' && (
-                <div className="w-8 h-8 rounded-full bg-brand-yellow flex items-center justify-center mr-2 flex-shrink-0 mt-1">
-                  <span className="text-brand-black font-bold text-xs">AI</span>
+            <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+              <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} w-full`}>
+                {msg.role === 'assistant' && (
+                  <div className="w-8 h-8 rounded-full bg-brand-yellow flex items-center justify-center mr-2 flex-shrink-0 mt-1">
+                    <span className="text-brand-black font-bold text-xs">AI</span>
+                  </div>
+                )}
+                <div className={`max-w-[75%] px-4 py-3 rounded-2xl text-sm leading-relaxed
+                  ${msg.role === 'user'
+                    ? 'bg-brand-yellow text-brand-black rounded-br-sm'
+                    : 'bg-gray-100 text-brand-black rounded-bl-sm'}`}
+                >
+                  {msg.role === 'assistant' ? <MarkdownMessage content={msg.content} /> : msg.content}
                 </div>
-              )}
-              <div className={`max-w-[75%] px-4 py-3 rounded-2xl text-sm leading-relaxed
-                ${msg.role === 'user'
-                  ? 'bg-brand-yellow text-brand-black rounded-br-sm'
-                  : 'bg-gray-100 text-brand-black rounded-bl-sm'}`}
-              >
-                {msg.role === 'assistant' ? <MarkdownMessage content={msg.content} /> : msg.content}
+                {msg.role === 'user' && (
+                  <div className="w-8 h-8 rounded-full bg-brand-black flex items-center justify-center ml-2 flex-shrink-0 mt-1">
+                    <span className="text-brand-yellow font-bold text-xs">
+                      {user?.fullName?.[0] || 'U'}
+                    </span>
+                  </div>
+                )}
               </div>
-              {msg.role === 'user' && (
-                <div className="w-8 h-8 rounded-full bg-brand-black flex items-center justify-center ml-2 flex-shrink-0 mt-1">
-                  <span className="text-brand-yellow font-bold text-xs">
-                    {user?.fullName?.[0] || 'U'}
-                  </span>
+              {msg.role === 'assistant' && isCompleteProposals(msg.editProposals) && (
+                <div className="ml-10">
+                  <RoadmapEditProposalCard
+                    proposals={msg.editProposals}
+                    messageId={msg.id}
+                    onApply={applyEditProposals}
+                    onDismiss={dismissEditProposals}
+                  />
                 </div>
               )}
             </div>
@@ -596,28 +708,53 @@ export default function AIChatPage() {
         </div>
 
         {/* Input */}
-        <div className="p-4 pt-2 border-t border-gray-100 flex gap-3">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isStreaming}
-            placeholder="Ask anything... (Enter to send)"
-            rows={2}
-            className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-brand-black
-                       placeholder:text-brand-gray-mid resize-none
-                       focus:outline-none focus:ring-2 focus:ring-brand-yellow focus:border-transparent
-                       disabled:opacity-50 text-sm"
-          />
-          <button
-            onClick={handleSend}
-            disabled={!input.trim() || isStreaming}
-            className="bg-brand-yellow text-brand-black p-3 rounded-xl hover:bg-brand-yellow-dark
-                       active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed
-                       flex-shrink-0 self-end"
-          >
-            <PaperAirplaneIcon className="w-5 h-5" />
-          </button>
+        <div className="border-t border-gray-100 flex flex-col">
+          {/* Language toggle */}
+          <div className="px-4 pt-3 flex items-center gap-2">
+            <span className="text-xs text-brand-gray-mid">Respond in:</span>
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+              {[
+                { key: 'english', label: 'English' },
+                { key: 'tagalog', label: 'Tagalog' },
+                { key: 'taglish', label: 'Taglish' },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setChatLanguage(key)}
+                  className={`px-3 py-1 transition-colors
+                    ${chatLanguage === key
+                      ? 'bg-brand-yellow text-brand-black font-medium'
+                      : 'bg-white text-brand-gray-mid hover:bg-gray-50'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* Textarea + send */}
+          <div className="p-4 pt-2 flex gap-3">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={isStreaming}
+              placeholder="Ask anything... (Enter to send)"
+              rows={2}
+              className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-brand-black
+                         placeholder:text-brand-gray-mid resize-none
+                         focus:outline-none focus:ring-2 focus:ring-brand-yellow focus:border-transparent
+                         disabled:opacity-50 text-sm"
+            />
+            <button
+              onClick={handleSend}
+              disabled={!input.trim() || isStreaming}
+              className="bg-brand-yellow text-brand-black p-3 rounded-xl hover:bg-brand-yellow-dark
+                         active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed
+                         flex-shrink-0 self-end"
+            >
+              <PaperAirplaneIcon className="w-5 h-5" />
+            </button>
+          </div>
         </div>
       </div>
     </div>

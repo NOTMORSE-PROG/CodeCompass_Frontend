@@ -12,7 +12,7 @@ export const authApi = {
   changePassword: (data) => apiClient.post('/auth/change-password/', data),
   // Google OAuth
   googleAuth: (credential) => apiClient.post('/auth/google/', { credential }),
-  setRole: (role) => apiClient.post('/auth/set-role/', { role }),
+  connectGoogle: (credential) => apiClient.post('/auth/connect-google/', { credential }),
 }
 
 /**

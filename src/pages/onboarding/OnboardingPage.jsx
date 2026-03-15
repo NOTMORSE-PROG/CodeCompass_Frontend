@@ -236,6 +236,9 @@ export default function OnboardingPage() {
       } else {
         setOnboarded()
       }
+      if (completionData.xpEarned) {
+        toast.success(`+${completionData.xpEarned} XP! Onboarding complete!`)
+      }
       setCompletingStep(2)
 
       await generateRoadmap()
@@ -269,10 +272,19 @@ export default function OnboardingPage() {
     'have everything i need',
     'enough information',
   ]
+  // Check if a signal phrase appears WITHOUT a preceding negation (e.g. "hindi pa ready na akong gumawa"
+  // contains the signal but should NOT trigger the button).
+  const NEGATIONS = ['hindi', 'not', "haven't", 'wala', 'di pa', 'hindi pa', 'wala pa']
+  const containsSignal = (text, sig) => {
+    const idx = text.indexOf(sig)
+    if (idx === -1) return false
+    const before = text.slice(Math.max(0, idx - 25), idx)
+    return !NEGATIONS.some((neg) => before.includes(neg))
+  }
   const aiSignaledReady = messages.some(
     (m) =>
       m.role === 'assistant' &&
-      READY_SIGNALS.some((sig) => m.content.toLowerCase().includes(sig))
+      READY_SIGNALS.some((sig) => containsSignal(m.content.toLowerCase(), sig))
   )
   const showReadyButton = aiSignaledReady && !isCompleting && !isStreaming
 

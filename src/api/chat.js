@@ -14,7 +14,7 @@ export const chatApi = {
  * Create a WebSocket connection for AI chat streaming.
  * Returns the WebSocket instance.
  */
-export function createChatWebSocket(sessionId, { onChunk, onEnd, onError, onSuggestions, onTitleUpdate }) {
+export function createChatWebSocket(sessionId, { onChunk, onEnd, onError, onSuggestions, onTitleUpdate, onClose }) {
   const WS_BASE = import.meta.env.VITE_WS_URL || ''
   // Pass JWT access token as query param for WebSocket authentication
   const { accessToken } = useAuthStore.getState()
@@ -52,8 +52,9 @@ export function createChatWebSocket(sessionId, { onChunk, onEnd, onError, onSugg
     onError?.('WebSocket connection error')
   }
 
-  ws.onclose = () => {
-    console.log('[WS] Chat disconnected')
+  ws.onclose = (event) => {
+    console.log('[WS] Chat disconnected', event.code)
+    onClose?.(event.code)
   }
 
   return ws

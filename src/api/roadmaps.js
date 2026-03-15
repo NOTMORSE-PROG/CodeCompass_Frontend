@@ -7,6 +7,7 @@ export const roadmapApi = {
   updateNodeStatus: (roadmapId, nodeId, status) =>
     apiClient.patch(`/roadmaps/${roadmapId}/nodes/${nodeId}/`, { status }),
   repair: (roadmapId) => apiClient.post(`/roadmaps/${roadmapId}/repair/`),
+  fixStructure: (roadmapId) => apiClient.post(`/roadmaps/${roadmapId}/fix-structure/`),
   fetchResources: (roadmapId, nodeId) =>
     apiClient.post(`/roadmaps/${roadmapId}/nodes/${nodeId}/fetch-resources/`),
   startAssessment: (roadmapId, nodeId, resourceId) =>
@@ -16,4 +17,12 @@ export const roadmapApi = {
       `/roadmaps/${roadmapId}/nodes/${nodeId}/resources/${resourceId}/assessment/${sessionId}/submit/`,
       { answers }
     ),
+  editRoadmapMeta: (roadmapId, changes) =>
+    apiClient.patch(`/roadmaps/${roadmapId}/edit/`, changes),
+  editNodeContent: (roadmapId, nodeId, changes) =>
+    apiClient.patch(`/roadmaps/${roadmapId}/nodes/${nodeId}/edit/`, changes),
+  addNode: (roadmapId, payload) =>
+    apiClient.post(`/roadmaps/${roadmapId}/nodes/add/`, payload),
+  removeNode: (roadmapId, nodeId) =>
+    apiClient.delete(`/roadmaps/${roadmapId}/nodes/${nodeId}/remove/`),
 }

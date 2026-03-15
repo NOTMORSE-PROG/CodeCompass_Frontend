@@ -82,6 +82,22 @@ function fireSmallConfetti() {
   })
 }
 
+function hasWrongStructure(nodes) {
+  // Group into phases (split at milestones), detect any phase mixing certs + non-certs
+  const phases = []
+  let cur = []
+  for (const node of nodes) {
+    if (node.nodeType === 'milestone') { if (cur.length) phases.push(cur); cur = [] }
+    else cur.push(node)
+  }
+  if (cur.length) phases.push(cur)
+  return phases.some(
+    (ph) =>
+      ph.some((n) => n.nodeType === 'certification') &&
+      ph.some((n) => n.nodeType === 'skill' || n.nodeType === 'assessment' || n.nodeType === 'project')
+  )
+}
+
 function SubSectionDivider({ label }) {
   return (
     <div className="flex items-center gap-2 pt-3 pb-1">
@@ -1267,6 +1283,15 @@ export default function RoadmapPage() {
     }
   }, [currentRoadmap, isLoading])
 
+  // Auto-fix wrong phase structure (projects after certifications)
+  useEffect(() => {
+    if (!currentRoadmap || isLoading) return
+    if (hasWrongStructure(currentRoadmap.nodes ?? [])) {
+      roadmapApi.fixStructure(currentRoadmap.id)
+        .then(() => fetchRoadmap(currentRoadmap.id))
+    }
+  }, [currentRoadmap?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-dismiss "Next Up" banner after 6 seconds
   useEffect(() => {
     if (!nextUpNode) return
@@ -1308,8 +1333,10 @@ export default function RoadmapPage() {
   }
 
   const completionPct = parseFloat(currentRoadmap?.completionPercentage || 0)
-  const completedCount = currentRoadmap?.nodes?.filter((n) => n.status === 'completed').length || 0
-  const totalCount = currentRoadmap?.nodes?.length || 0
+  const completedCount = currentRoadmap?.nodes?.filter(
+    (n) => n.status === 'completed' && n.nodeType !== 'milestone'
+  ).length || 0
+  const totalCount = currentRoadmap?.nodes?.filter((n) => n.nodeType !== 'milestone').length || 0
   const allLocked = currentRoadmap?.nodes?.length > 0 &&
     currentRoadmap.nodes.every((n) => n.status === 'locked' || n.nodeType === 'milestone')
 
@@ -1489,9 +1516,9 @@ export default function RoadmapPage() {
               <div key={gIdx}>
                 {group.milestone && renderNode(group.milestone)}
                 {regularNodes.map(renderNode)}
-                {subSections.map(({ label, nodes }) => (
+                {subSections.map(({ label, nodes }, sIdx) => (
                   <div key={label}>
-                    <SubSectionDivider label={label} />
+                    {(sIdx > 0 || regularNodes.length > 0) && <SubSectionDivider label={label} />}
                     {nodes.map(renderNode)}
                   </div>
                 ))}

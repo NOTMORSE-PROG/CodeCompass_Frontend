@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import useAuthStore from '../../stores/authStore'
 import { profileApi } from '../../api/profile'
-import { PencilIcon, CheckIcon } from '@heroicons/react/24/solid'
+import { authApi } from '../../api/auth'
+import { GoogleLogin } from '@react-oauth/google'
+import { PencilIcon, CheckIcon, XMarkIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/solid'
 import toast from 'react-hot-toast'
 
 const SKILL_OPTIONS = [
@@ -20,7 +22,7 @@ const CAREER_OPTIONS = [
 const PROGRAMS = ['BSCS', 'BSIT', 'BSIS', 'BSCE', 'Undecided']
 
 export default function ProfilePage() {
-  const { user } = useAuthStore()
+  const { user, connectGoogle, refreshToken, _saveSession } = useAuthStore()
   const [editing, setEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -38,6 +40,16 @@ export default function ProfilePage() {
   const [headline, setHeadline] = useState('')
   const [mentorType, setMentorType] = useState('industry')
   const [isVerified, setIsVerified] = useState(false)
+
+  // Change password modal
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [oldPassword, setOldPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [isSavingPassword, setIsSavingPassword] = useState(false)
+  const [showOld, setShowOld] = useState(false)
+  const [showNew, setShowNew] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
 
   const isStudent = user?.role === 'incoming_student' || user?.role === 'undergraduate'
   const isMentor = user?.role === 'mentor'
@@ -98,6 +110,58 @@ export default function ProfilePage() {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault()
+    if (isSavingPassword) return  // Bug fix B: guard against Enter-key double-submit
+    if (newPassword !== confirmPassword) {
+      toast.error('New passwords do not match.')
+      return
+    }
+    setIsSavingPassword(true)
+    try {
+      // Send refresh token so the backend can blacklist it and return fresh tokens
+      const { data } = await authApi.changePassword({
+        old_password: oldPassword,
+        new_password: newPassword,
+        new_password_confirm: confirmPassword,
+        refresh: refreshToken,
+      })
+      // Update the session with the fresh token pair returned by the server
+      if (data?.access) {
+        _saveSession(data)
+      }
+      handleClosePasswordModal()
+      toast.success('Password changed successfully.')
+    } catch (err) {
+      // Bug fix A: CamelCaseJSONRenderer converts DRF error keys to camelCase
+      const d = err.response?.data
+      const first = (arr) => (Array.isArray(arr) ? arr[0] : arr)
+      const msg =
+        first(d?.oldPassword) ||
+        first(d?.newPassword) ||
+        first(d?.newPasswordConfirm) ||
+        d?.detail ||
+        'Failed to change password.'
+      toast.error(msg)
+    } finally {
+      setIsSavingPassword(false)
+    }
+  }
+
+  const handleClosePasswordModal = () => {
+    setShowPasswordModal(false)
+    setOldPassword('')
+    setNewPassword('')
+    setConfirmPassword('')
+    setShowOld(false)
+    setShowNew(false)
+    setShowConfirm(false)
+  }
+
+  const handleGoogleConnect = async (credentialResponse) => {
+    await connectGoogle(credentialResponse.credential)
   }
 
   const roleLabel = {
@@ -326,16 +390,169 @@ export default function ProfilePage() {
       <div className="card">
         <h3 className="font-bold text-brand-black mb-4">Account Settings</h3>
         <div className="space-y-3">
-          <button className="w-full text-left px-4 py-3 rounded-lg border border-gray-200
-                             hover:border-brand-yellow transition-colors text-sm text-brand-black">
-            Change Password
-          </button>
+          {/* Change Password — only for email users */}
+          {user?.hasPassword && (
+            <button
+              onClick={() => setShowPasswordModal(true)}
+              className="w-full text-left px-4 py-3 rounded-lg border border-gray-200
+                         hover:border-brand-yellow transition-colors text-sm text-brand-black"
+            >
+              Change Password
+            </button>
+          )}
+
+          {/* Connect Google — only for email users who haven't connected yet */}
+          {user?.hasPassword && !user?.googleConnected && (
+            <div className="rounded-lg border border-gray-200 px-4 py-3">
+              <p className="text-sm text-brand-black mb-2">Connect Google Account</p>
+              <p className="text-xs text-brand-gray-mid mb-3">
+                Link your Google account to sign in faster. Your email must match your Google account.
+              </p>
+              <GoogleLogin
+                onSuccess={handleGoogleConnect}
+                onError={() => toast.error('Google connection failed.')}
+                text="continue_with"
+                shape="rectangular"
+                size="medium"
+              />
+            </div>
+          )}
+
+          {/* Google Connected badge */}
+          {user?.googleConnected && (
+            <div className="px-4 py-3 rounded-lg border border-green-200 bg-green-50 flex items-center gap-2">
+              <svg className="w-4 h-4 text-green-600 flex-shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+              </svg>
+              <span className="text-sm text-green-700 font-medium">Google account connected</span>
+            </div>
+          )}
+
+          {/* Google-only users: informational note */}
+          {!user?.hasPassword && (
+            <div className="px-4 py-3 rounded-lg border border-gray-100 bg-gray-50">
+              <p className="text-xs text-brand-gray-mid">
+                You signed up with Google. Password-based login is not available for your account.
+              </p>
+            </div>
+          )}
+
           <button className="w-full text-left px-4 py-3 rounded-lg border border-red-200
                              hover:bg-red-50 transition-colors text-sm text-red-500">
             Delete Account
           </button>
         </div>
       </div>
+
+      {/* Change Password Modal */}
+      {showPasswordModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          onClick={handleClosePasswordModal}
+        >
+          {/* Bug fix #4: stopPropagation prevents backdrop click from reaching inner card */}
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
+              <h3 className="font-bold text-brand-black text-lg">Change Password</h3>
+              <button
+                onClick={handleClosePasswordModal}
+                className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <XMarkIcon className="w-5 h-5 text-brand-gray-mid" />
+              </button>
+            </div>
+            <form onSubmit={handleChangePassword} className="px-6 py-5 space-y-4">
+              {/* Current password */}
+              <div>
+                <label className="block text-xs font-medium text-brand-gray-mid mb-1.5">Current Password</label>
+                <div className="relative">
+                  <input
+                    type={showOld ? 'text' : 'password'}
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                    required
+                    className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-200 text-brand-black text-sm
+                               focus:outline-none focus:ring-2 focus:ring-brand-yellow"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowOld((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-gray-mid hover:text-brand-black"
+                  >
+                    {showOld ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* New password */}
+              <div>
+                <label className="block text-xs font-medium text-brand-gray-mid mb-1.5">New Password</label>
+                <div className="relative">
+                  <input
+                    type={showNew ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                    className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-200 text-brand-black text-sm
+                               focus:outline-none focus:ring-2 focus:ring-brand-yellow"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNew((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-gray-mid hover:text-brand-black"
+                  >
+                    {showNew ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm new password */}
+              <div>
+                <label className="block text-xs font-medium text-brand-gray-mid mb-1.5">Confirm New Password</label>
+                <div className="relative">
+                  <input
+                    type={showConfirm ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                    className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-200 text-brand-black text-sm
+                               focus:outline-none focus:ring-2 focus:ring-brand-yellow"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirm((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-gray-mid hover:text-brand-black"
+                  >
+                    {showConfirm ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleClosePasswordModal}
+                  className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium
+                             text-brand-gray-mid hover:border-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingPassword}
+                  className="flex-1 px-4 py-2.5 rounded-lg bg-brand-yellow text-brand-black text-sm font-medium
+                             hover:bg-brand-yellow-dark transition-colors disabled:opacity-50"
+                >
+                  {isSavingPassword ? 'Saving...' : 'Update Password'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

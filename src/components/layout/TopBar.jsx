@@ -1,13 +1,23 @@
 /**
- * Top bar — shows XP indicator, streak, and notification bell.
+ * Top bar — shows live XP indicator, streak, and avatar.
  * On mobile shows a hamburger menu button to open the sidebar.
  */
+import { useEffect } from 'react'
 import { Bars3Icon } from '@heroicons/react/24/outline'
 import { BoltIcon, FireIcon } from '@heroicons/react/24/solid'
 import useAuthStore from '../../stores/authStore'
+import useGamificationStore from '../../stores/gamificationStore'
 
 export default function TopBar({ onMenuClick }) {
   const { user } = useAuthStore()
+  const { profile, fetchProfile } = useGamificationStore()
+
+  useEffect(() => {
+    fetchProfile()
+  }, [fetchProfile])
+
+  const xpTotal = profile?.xpTotal ?? 0
+  const streakCount = profile?.streakCount ?? 0
 
   return (
     <header className="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 md:px-6 flex-shrink-0">
@@ -28,13 +38,13 @@ export default function TopBar({ onMenuClick }) {
         {/* XP Indicator */}
         <div className="flex items-center gap-1.5 bg-brand-yellow-pale px-2.5 md:px-3 py-1.5 rounded-full border border-brand-yellow/30">
           <BoltIcon className="w-4 h-4 text-brand-yellow" />
-          <span className="text-brand-black font-bold text-sm">0 XP</span>
+          <span className="text-brand-black font-bold text-sm">{xpTotal.toLocaleString()} XP</span>
         </div>
 
         {/* Streak */}
         <div className="flex items-center gap-1.5 bg-orange-50 px-2.5 md:px-3 py-1.5 rounded-full border border-orange-200">
           <FireIcon className="w-4 h-4 text-orange-500" />
-          <span className="text-orange-700 font-bold text-sm">0</span>
+          <span className="text-orange-700 font-bold text-sm">{streakCount}</span>
         </div>
 
         {/* Avatar */}

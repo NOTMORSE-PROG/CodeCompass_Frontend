@@ -6,6 +6,10 @@
 import { create } from 'zustand'
 import { authApi, decodeToken } from '../api/auth'
 import toast from 'react-hot-toast'
+// Imported here (not dynamically) so Vite can place them in the same chunk.
+// Circular refs are safe with Zustand — stores are plain objects, not executed at import time.
+import useChatStore from './chatStore'
+import useRoadmapStore from './roadmapStore'
 
 /** Decode a token and return a user object, or null if invalid/expired. */
 const _userFromToken = (token) => {
@@ -22,6 +26,8 @@ const _userFromToken = (token) => {
     fullName: payload.full_name || '',
     role: payload.role || null,
     isOnboarded: payload.is_onboarded ?? false,
+    hasPassword: payload.has_password ?? true,
+    googleConnected: payload.google_connected ?? false,
   }
 }
 
@@ -68,7 +74,8 @@ const useAuthStore = create((set, get) => ({
     }
   },
 
-  /** Log out — clear tokens and user state. */
+  /** Log out — clear tokens and user state. Also resets roadmap/chat stores to prevent
+   * data leakage when a different user logs in on the same device. */
   logout: async () => {
     const refreshToken = get().refreshToken
     if (refreshToken) {
@@ -78,9 +85,21 @@ const useAuthStore = create((set, get) => ({
         // Ignore errors on logout
       }
     }
+    // Close active WebSocket before clearing chat state
+    const { ws } = useChatStore.getState()
+    if (ws) ws.close()
+
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
     set({ user: null, accessToken: null, refreshToken: null })
+
+    // Clear other stores so User B never sees User A's data
+    useRoadmapStore.setState({ roadmaps: [], currentRoadmap: null, isLoading: false, isGenerating: false })
+    useChatStore.setState({
+      sessions: [], currentSession: null, messages: [],
+      streamingContent: '', isStreaming: false, wsConnected: false,
+      suggestions: [], ws: null, _sessionCreating: false,
+    })
   },
 
   /** Update user's onboarded status (called after completing onboarding). */
@@ -109,6 +128,23 @@ const useAuthStore = create((set, get) => ({
     }
   },
 
+  /** Connect a Google account to an existing email-registered account. */
+  connectGoogle: async (credential) => {
+    set({ isLoading: true })
+    try {
+      const { data } = await authApi.connectGoogle(credential)
+      get()._saveSession(data)
+      toast.success('Google account connected!')
+      return { success: true }
+    } catch (error) {
+      const msg = error.response?.data?.detail || 'Failed to connect Google account.'
+      toast.error(msg)
+      return { success: false, error: msg }
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
   /** Internal: save tokens and decode user from JWT. */
   _saveSession: ({ access, refresh, user }) => {
     localStorage.setItem('access_token', access)
@@ -124,6 +160,8 @@ const useAuthStore = create((set, get) => ({
         fullName: payload?.full_name || (user?.firstName ? `${user.firstName} ${user.lastName}`.trim() : ''),
         role: payload?.role || null,
         isOnboarded: payload?.is_onboarded ?? user?.isOnboarded ?? false,
+        hasPassword: payload?.has_password ?? true,
+        googleConnected: payload?.google_connected ?? false,
       },
     })
   },
@@ -142,6 +180,8 @@ export const decodeAndUpdateUser = (accessToken) => {
       ...state.user,
       role: payload.role ?? state.user.role,
       isOnboarded: payload.is_onboarded ?? state.user.isOnboarded,
+      hasPassword: payload.has_password ?? state.user.hasPassword,
+      googleConnected: payload.google_connected ?? state.user.googleConnected,
     } : null,
   }))
 }

@@ -35,12 +35,14 @@ export default function AchievementsPage() {
     profile,
     allBadges,
     earnedBadges,
+    xpHistory,
     leaderboard,
     leaderboardPeriod,
     isLoading,
     fetchProfile,
     fetchAllBadges,
     fetchEarnedBadges,
+    fetchXPHistory,
     fetchLeaderboard,
   } = useGamificationStore()
 
@@ -48,8 +50,9 @@ export default function AchievementsPage() {
     fetchProfile()
     fetchAllBadges()
     fetchEarnedBadges()
+    fetchXPHistory()
     fetchLeaderboard('weekly')
-  }, [fetchProfile, fetchAllBadges, fetchEarnedBadges, fetchLeaderboard])
+  }, [fetchProfile, fetchAllBadges, fetchEarnedBadges, fetchXPHistory, fetchLeaderboard])
 
   const xpTotal = profile?.xpTotal ?? 0
   const streakCount = profile?.streakCount ?? 0
@@ -139,6 +142,30 @@ export default function AchievementsPage() {
                     badge={badge}
                     earned={earnedBadgeSlugs.has(badge.slug)}
                   />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* XP Activity */}
+          <div className="card">
+            <h2 className="font-bold text-brand-black mb-4 flex items-center gap-2">
+              <BoltIcon className="w-5 h-5 text-brand-yellow" />
+              XP Activity
+            </h2>
+            {xpHistory.length === 0 ? (
+              <p className="text-brand-gray-mid text-sm text-center py-6">
+                No XP earned yet. Complete nodes and earn badges to see your history!
+              </p>
+            ) : (
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                {xpHistory.map((event) => (
+                  <div key={event.id} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                    <span className="text-sm text-brand-gray-dark">{event.description}</span>
+                    <span className="text-sm font-bold text-brand-yellow whitespace-nowrap ml-4">
+                      +{event.xpEarned} XP
+                    </span>
+                  </div>
                 ))}
               </div>
             )}
