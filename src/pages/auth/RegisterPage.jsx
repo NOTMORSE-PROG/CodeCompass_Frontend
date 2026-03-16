@@ -26,6 +26,10 @@ export default function RegisterPage() {
   const navigate = useNavigate()
 
   const handleGoogleSuccess = async ({ credential }) => {
+    if (!credential) {
+      toast.error('Google sign-up failed. Please try again.')
+      return
+    }
     const result = await loginWithGoogle(credential)
     if (result.success) {
       const { user } = useAuthStore.getState()
@@ -130,6 +134,7 @@ export default function RegisterPage() {
           width="368"
           text="signup_with"
           shape="rectangular"
+          auto_select={false}
         />
       </div>
 

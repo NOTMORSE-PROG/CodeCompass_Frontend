@@ -39,6 +39,10 @@ export default function LoginPage() {
   }
 
   const handleGoogleSuccess = async ({ credential }) => {
+    if (!credential) {
+      toast.error('Google sign-in failed. Please try again.')
+      return
+    }
     const result = await loginWithGoogle(credential)
     if (result.success) {
       const { user } = useAuthStore.getState()
@@ -120,6 +124,7 @@ export default function LoginPage() {
           width="368"
           text="signin_with"
           shape="rectangular"
+          auto_select={false}
         />
       </div>
 
