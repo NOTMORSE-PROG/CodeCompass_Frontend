@@ -7,7 +7,6 @@ import { Link } from 'react-router-dom'
 import {
   MapIcon,
   ChatBubbleLeftRightIcon,
-  UserGroupIcon,
   BriefcaseIcon,
   AcademicCapIcon,
   TrophyIcon,
@@ -27,12 +26,6 @@ const FEATURES = [
     title: 'AI Career Assistant',
     desc: 'Chat with CodeCompass AI anytime — get instant answers about careers, certifications, and learning paths.',
     color: 'bg-blue-50 text-blue-500',
-  },
-  {
-    icon: UserGroupIcon,
-    title: 'Mentor Matching',
-    desc: 'Connect with verified IT professionals, professors, and CCS alumni for real guidance.',
-    color: 'bg-green-50 text-green-500',
   },
   {
     icon: BriefcaseIcon,
@@ -57,13 +50,13 @@ const FEATURES = [
 const STEPS = [
   {
     step: '01',
-    title: 'Register and choose your role',
-    desc: 'Are you an incoming student, undergraduate, or IT professional? Pick the path that fits you.',
+    title: 'Register your account',
+    desc: 'Sign up in seconds — no role selection needed. CodeCompass figures out your path through onboarding.',
   },
   {
     step: '02',
-    title: 'Complete the onboarding quiz',
-    desc: 'Just a few questions about your skills, interests, and career goals. There are no wrong answers!',
+    title: 'Complete the AI onboarding chat',
+    desc: 'Chat with our AI about your skills, interests, and goals. There are no wrong answers!',
   },
   {
     step: '03',
@@ -82,14 +75,8 @@ const ROLES = [
   {
     emoji: '💻',
     title: 'Undergraduate / Shifter',
-    desc: 'Fill skill gaps, earn certifications, find jobs, and connect with mentors. Also for students shifting to CCS.',
+    desc: 'Fill skill gaps, earn certifications, find jobs, and level up your tech career. Also for students shifting to CCS.',
     cta: 'Boost My Skills',
-  },
-  {
-    emoji: '🧑‍💼',
-    title: 'Mentor',
-    desc: 'Give back to the CCS community. Guide the next generation of tech professionals in the Philippines.',
-    cta: 'Become a Mentor',
   },
 ]
 
@@ -149,7 +136,7 @@ export default function LandingPage() {
 
         {/* Headline */}
         <h1 className="text-3xl md:text-5xl lg:text-6xl font-extrabold text-brand-black leading-tight mb-6">
-          Your AI Career Mentor
+          Your AI Career Guide
           <br />
           <span className="text-brand-yellow">for CCS Students</span>
           <br />
@@ -157,8 +144,8 @@ export default function LandingPage() {
         </h1>
 
         <p className="text-gray-500 text-lg max-w-2xl mx-auto mb-10 leading-relaxed">
-          CodeCompass gives you a personalized tech career roadmap, connects you with mentors,
-          matches you with Philippine IT jobs, and guides you every step of the way.
+          CodeCompass gives you a personalized tech career roadmap, matches you with Philippine IT jobs,
+          and guides you every step of the way — powered by AI.
         </p>
 
         {/* Hero CTAs */}
@@ -186,7 +173,7 @@ export default function LandingPage() {
             '✓ No credit card required',
             '✓ AI-powered career guidance',
             '✓ Real PH job listings',
-            '✓ Verified mentors',
+            '✓ Free for all CCS students',
           ].map((item) => (
             <span key={item} className="flex items-center gap-1">{item}</span>
           ))}
@@ -256,7 +243,7 @@ export default function LandingPage() {
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
             {ROLES.map(({ emoji, title, desc, cta }) => (
               <div key={title} className="bg-white rounded-2xl border-2 border-gray-200 p-6 md:p-8 text-center
                                           hover:border-brand-yellow hover:shadow-lg transition-all group">
