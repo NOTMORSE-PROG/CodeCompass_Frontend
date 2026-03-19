@@ -29,6 +29,7 @@ const useResumeStore = create((set, get) => ({
   currentResume: null,
   isFetching: false,
   isSaving: false,
+  isAutoSaving: false,
   isGenerating: false,
 
   // AI results
@@ -60,6 +61,7 @@ const useResumeStore = create((set, get) => ({
       set({
         currentResume: {
           ...data,
+          template_name: data.templateName || data.template_name || 'modern',
           content: { ...EMPTY_CONTENT, ...data.content },
         },
         atsResult: null,
@@ -85,7 +87,7 @@ const useResumeStore = create((set, get) => ({
       })
       set((state) => ({
         resumes: [data, ...state.resumes],
-        currentResume: { ...data, content: { ...EMPTY_CONTENT, ...data.content } },
+        currentResume: { ...data, template_name: template, content: { ...EMPTY_CONTENT, ...data.content } },
         atsResult: null,
         parsedJob: null,
         bulletSuggestions: [],
@@ -123,26 +125,38 @@ const useResumeStore = create((set, get) => ({
     })
   },
 
-  /** Save the current resume to the backend. */
-  saveResume: async () => {
+  /** Save the current resume to the backend. Pass silent=true for auto-saves. */
+  saveResume: async (silent = false) => {
     const { currentResume } = get()
     if (!currentResume) return
-    set({ isSaving: true })
+    if (silent) {
+      set({ isAutoSaving: true })
+    } else {
+      set({ isSaving: true })
+    }
     try {
       const { data } = await resumesApi.update(currentResume.id, {
         title: currentResume.title,
-        template_name: currentResume.template_name,
+        template_name: currentResume.template_name || currentResume.templateName,
         content: currentResume.content,
       })
       set((state) => ({
-        currentResume: { ...state.currentResume, ...data },
+        // Only update server-assigned metadata — never overwrite local content/title
+        // which may have been edited while the request was in flight.
+        currentResume: state.currentResume
+          ? { ...state.currentResume, updated_at: data.updated_at }
+          : null,
         resumes: state.resumes.map((r) => (r.id === data.id ? { ...r, ...data } : r)),
       }))
-      toast.success('Resume saved!')
+      if (!silent) toast.success('Resume saved!')
     } catch {
       toast.error('Failed to save resume.')
     } finally {
-      set({ isSaving: false })
+      if (silent) {
+        set({ isAutoSaving: false })
+      } else {
+        set({ isSaving: false })
+      }
     }
   },
 
@@ -214,13 +228,13 @@ const useResumeStore = create((set, get) => ({
     }
   },
 
-  /** Score the current resume against job keywords. */
-  scoreAts: async (jobKeywords) => {
+  /** Score the current resume against a parsed job object. */
+  scoreAts: async (parsedJob) => {
     const { currentResume } = get()
     if (!currentResume) return
     set({ isGenerating: true, atsResult: null })
     try {
-      const { data } = await resumesApi.scoreAts(currentResume.id, jobKeywords)
+      const { data } = await resumesApi.scoreAts(currentResume.id, parsedJob)
       set({ atsResult: data })
     } catch {
       toast.error('ATS scoring failed.')

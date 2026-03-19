@@ -992,7 +992,7 @@ const ResumePreview = forwardRef(function ResumePreview(
   ref
 ) {
   const content = sampleMode ? SAMPLE_CONTENT : (resume?.content || {})
-  const templateId = sampleMode ? resume : (resume?.template_name || 'modern')
+  const templateId = sampleMode ? resume : (resume?.templateName || resume?.template_name || 'modern')
   const color = colorOverride || content?._styling?.primaryColor || '#1A2F5E'
   const Template = TEMPLATE_MAP[templateId] || ModernTemplate
 

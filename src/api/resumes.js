@@ -32,7 +32,7 @@ export const resumesApi = {
   parseJobDescription: (jobDescription) =>
     client.post('/resumes/parse-job/', { jobDescription }),
 
-  /** AI: Score resume against job keywords and get suggestions. */
-  scoreAts: (id, jobKeywords) =>
-    client.post(`/resumes/${id}/score-ats/`, { jobKeywords }),
+  /** AI: Score resume against a parsed job object and get weighted suggestions. */
+  scoreAts: (id, parsedJob) =>
+    client.post(`/resumes/${id}/score-ats/`, { parsedJob }),
 }

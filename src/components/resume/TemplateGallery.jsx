@@ -5,7 +5,7 @@
  * Shows live miniature previews of all 5 templates using sample data.
  * Also lets the user pick an accent color preset.
  */
-import { useState } from 'react'
+import { useState, useRef, useLayoutEffect } from 'react'
 import ResumePreview, { TEMPLATES, COLOR_PRESETS } from './ResumePreview'
 
 export default function TemplateGallery({ onSelect, onClose, initialTemplate = 'modern', initialColor = '#1A2F5E', mode = 'create' }) {
@@ -135,9 +135,26 @@ export default function TemplateGallery({ onSelect, onClose, initialTemplate = '
 // ---------------------------------------------------------------------------
 // Individual template card with miniature preview
 // ---------------------------------------------------------------------------
+const RESUME_WIDTH = 816
+
 function TemplateCard({ template, color, isSelected, isHovered: _isHovered, onSelect, onHover }) {
+  const containerRef = useRef(null)
+  const [scale, setScale] = useState(0.33)
+
+  useLayoutEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const obs = new ResizeObserver(([entry]) => {
+      const w = entry.contentRect.width
+      if (w > 0) setScale(w / RESUME_WIDTH)
+    })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
   return (
     <button
+      ref={containerRef}
       onClick={onSelect}
       onMouseEnter={() => onHover(true)}
       onMouseLeave={() => onHover(false)}
@@ -165,9 +182,17 @@ function TemplateCard({ template, color, isSelected, isHovered: _isHovered, onSe
         </div>
       )}
 
-      {/* Miniature preview */}
-      <div className="overflow-hidden bg-white" style={{ height: '280px' }}>
-        <div style={{ transform: 'scale(0.27)', transformOrigin: 'top left', width: '370%', pointerEvents: 'none' }}>
+      {/* Miniature preview — scales resume to exactly fill card width */}
+      <div className="relative overflow-hidden bg-white" style={{ height: '260px' }}>
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: `${RESUME_WIDTH}px`,
+          transform: `scale(${scale})`,
+          transformOrigin: 'top left',
+          pointerEvents: 'none',
+        }}>
           <ResumePreview resume={template.id} sampleMode color={color} />
         </div>
       </div>

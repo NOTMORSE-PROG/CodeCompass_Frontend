@@ -25,7 +25,7 @@ const TEMPLATE_CARD_COLORS = {
 // ---------------------------------------------------------------------------
 export default function ResumePage() {
   const {
-    resumes, currentResume, isFetching, isSaving, isGenerating,
+    resumes, currentResume, isFetching, isSaving, isAutoSaving, isGenerating,
     bulletSuggestions, summarySuggestions, atsResult,
     fetchResumes, loadResume, createResume, saveResume, deleteResume, closeResume,
     updateCurrentResume, updateSection,
@@ -34,6 +34,7 @@ export default function ResumePage() {
   } = useResumeStore()
 
   const [activeTab, setActiveTab] = useState('info')
+  const [mobilePanel, setMobilePanel] = useState('editor') // 'editor' | 'preview' | 'ats'
   const [jobDescText, setJobDescText] = useState('')
   const [bulletModal, setBulletModal] = useState(null)
   const [summaryModal, setSummaryModal] = useState(false)
@@ -67,9 +68,23 @@ export default function ResumePage() {
   const saveTimeout = useRef(null)
   const debouncedSave = useCallback(() => {
     clearTimeout(saveTimeout.current)
-    saveTimeout.current = setTimeout(() => { saveResume() }, 2000)
+    saveTimeout.current = setTimeout(() => { saveResume(true) }, 8000)
   }, [saveResume])
   useEffect(() => () => clearTimeout(saveTimeout.current), [])
+
+  // Ctrl+S / Cmd+S — cancel pending auto-save and save immediately with toast
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        if (!currentResume) return
+        clearTimeout(saveTimeout.current)
+        saveResume()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [currentResume, saveResume])
 
   const handleSectionChange = (section, value) => {
     updateSection(section, value)
@@ -87,12 +102,12 @@ export default function ResumePage() {
   }
 
   const handleApplyTemplate = ({ templateId, color }) => {
-    updateCurrentResume({ template_name: templateId })
+    updateCurrentResume({ template_name: templateId, templateName: templateId })
     if (color) {
       updateSection('_styling', { ...(currentResume?.content?._styling || {}), primaryColor: color })
     }
     setShowGallery(false)
-    debouncedSave()
+    saveResume()
   }
 
   // Experience helpers
@@ -163,8 +178,8 @@ export default function ResumePage() {
   const handleAnalyzeJob = async () => {
     if (!jobDescText.trim()) return
     const result = await parseJob(jobDescText)
-    if (result?.keywords?.length > 0) {
-      await scoreAts([...result.keywords, ...(result.requiredSkills || [])])
+    if (result) {
+      await scoreAts(result)
     }
   }
 
@@ -208,13 +223,13 @@ export default function ResumePage() {
             {currentResume.template_name}
           </span>
           <div className="ml-auto flex items-center gap-2 flex-shrink-0">
-            <span className={`text-[10px] font-medium transition-colors ${isSaving ? 'text-amber-500' : 'text-green-500'}`}>
-              {isSaving ? '● Saving...' : '✓ Saved'}
+            <span className={`hidden sm:inline text-[10px] font-medium transition-colors ${isSaving ? 'text-amber-500' : 'text-green-500'}`}>
+              {isSaving ? '● Saving...' : isAutoSaving ? '● Auto-saving...' : '✓ Saved'}
             </span>
             <button
               onClick={saveResume}
               disabled={isSaving}
-              className="text-xs px-3 py-1.5 bg-gray-900 text-white rounded-md hover:bg-gray-700 disabled:opacity-50 transition-colors"
+              className="hidden sm:inline text-xs px-3 py-1.5 bg-gray-900 text-white rounded-md hover:bg-gray-700 disabled:opacity-50 transition-colors"
             >
               Save
             </button>
@@ -227,10 +242,11 @@ export default function ResumePage() {
           </div>
         </div>
 
-        {/* 3-panel editor */}
+        {/* 3-panel editor + mobile tabs */}
+        <div className="flex flex-col flex-1 overflow-hidden">
         <div className="flex flex-1 overflow-hidden">
           {/* LEFT: Editor */}
-          <div className="w-[340px] flex-shrink-0 border-r border-gray-200 flex flex-col overflow-hidden">
+          <div className={`flex-shrink-0 border-r border-gray-200 flex-col overflow-hidden w-full md:w-[300px] lg:w-[340px] ${mobilePanel === 'editor' ? 'flex' : 'hidden'} md:flex`}>
             <div className="px-4 pt-3 pb-0 border-b border-gray-100 bg-white flex-shrink-0">
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-xs text-gray-500 font-medium">Template:</span>
@@ -274,7 +290,16 @@ export default function ResumePage() {
                   onChange={handleSectionChange}
                   isGenerating={isGenerating}
                   suggestions={summarySuggestions}
-                  onGenerate={() => setSummaryModal(true)}
+                  onGenerate={() => {
+                    const latestTitle = currentResume?.content?.experience?.[0]?.title || ''
+                    const autoStrengths = currentResume?.content?.skills?.technical?.slice(0, 5).join(', ') || ''
+                    setSummaryForm(f => ({
+                      ...f,
+                      targetRole: f.targetRole || latestTitle,
+                      strengths: f.strengths || autoStrengths,
+                    }))
+                    setSummaryModal(true)
+                  }}
                   onPickSuggestion={(text) => { handleSectionChange('summary', text); clearSummarySuggestions() }}
                   onClear={clearSummarySuggestions}
                 />
@@ -312,8 +337,8 @@ export default function ResumePage() {
           </div>
 
           {/* CENTER: Live Preview */}
-          <div className="flex-1 overflow-y-auto bg-[#e0e2e6] p-5 flex flex-col">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 text-center mb-3 flex-shrink-0">
+          <div className={`flex-1 overflow-y-auto bg-[#e0e2e6] px-2 pt-2 pb-4 flex-col ${mobilePanel === 'preview' ? 'flex' : 'hidden'} md:flex`}>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 text-center mb-2 flex-shrink-0">
               Live Preview
             </p>
             <div ref={previewContainerRef} className="flex-shrink-0 w-full">
@@ -332,7 +357,7 @@ export default function ResumePage() {
           </div>
 
           {/* RIGHT: ATS Panel */}
-          <div className="w-[280px] flex-shrink-0 border-l border-gray-200 bg-white flex flex-col overflow-hidden">
+          <div className={`flex-shrink-0 border-l border-gray-200 bg-white flex-col overflow-hidden w-full lg:w-[280px] ${mobilePanel === 'ats' ? 'flex' : 'hidden'} lg:flex`}>
             <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
               <h3 className="text-sm font-bold text-gray-800">ATS Score</h3>
               <p className="text-xs text-gray-400">Paste a job description to analyze your match</p>
@@ -354,48 +379,153 @@ export default function ResumePage() {
                 </button>
               </div>
               {atsResult && (
-                <div className="space-y-3">
+                <div className="space-y-4">
+                  {/* Score circle + label */}
                   <div className="text-center">
-                    <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full border-4 font-bold text-xl ${
-                      atsResult.score >= 70 ? 'border-green-400 text-green-600' :
-                      atsResult.score >= 40 ? 'border-yellow-400 text-yellow-600' :
+                    <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full border-4 font-bold text-2xl ${
+                      atsResult.score >= 85 ? 'border-green-400 text-green-600' :
+                      atsResult.score >= 70 ? 'border-blue-400 text-blue-600' :
+                      atsResult.score >= 55 ? 'border-yellow-400 text-yellow-600' :
                       'border-red-400 text-red-600'
                     }`}>
                       {atsResult.score}%
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">ATS Match Score</p>
+                    <p className={`text-xs font-semibold mt-1 ${
+                      atsResult.score >= 85 ? 'text-green-600' :
+                      atsResult.score >= 70 ? 'text-blue-600' :
+                      atsResult.score >= 55 ? 'text-yellow-600' :
+                      'text-red-600'
+                    }`}>{atsResult.scoreLabel || 'ATS Match Score'}</p>
                   </div>
+
+                  {/* Breakdown bars */}
+                  {atsResult.breakdown && (
+                    <div className="space-y-2 bg-gray-50 rounded-lg p-3">
+                      <p className="text-xs font-semibold text-gray-600 mb-2">Score Breakdown</p>
+                      {[
+                        { label: 'Keywords', value: atsResult.breakdown.keywordScore, weight: '50%' },
+                        { label: 'Title Match', value: atsResult.breakdown.titleScore, weight: '25%' },
+                        { label: 'Structure', value: atsResult.breakdown.structureScore, weight: '25%' },
+                      ].map(({ label, value, weight }) => (
+                        <div key={label}>
+                          <div className="flex justify-between text-[10px] text-gray-500 mb-0.5">
+                            <span>{label} <span className="text-gray-400">({weight})</span></span>
+                            <span className="font-medium text-gray-700">{value}%</span>
+                          </div>
+                          <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all ${
+                                value >= 70 ? 'bg-green-400' : value >= 40 ? 'bg-yellow-400' : 'bg-red-400'
+                              }`}
+                              style={{ width: `${value}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Matched keywords */}
                   {atsResult.matchedKeywords?.length > 0 && (
                     <div>
                       <p className="text-xs font-semibold text-green-700 mb-1.5">✓ Matched ({atsResult.matchedKeywords.length})</p>
                       <div className="flex flex-wrap gap-1">
                         {atsResult.matchedKeywords.map((kw) => (
-                          <span key={kw} className="text-xs bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded">{kw}</span>
+                          <span key={kw} className="text-[10px] bg-green-50 text-green-700 border border-green-200 px-1.5 py-0.5 rounded-full">{kw}</span>
                         ))}
                       </div>
                     </div>
                   )}
-                  {atsResult.missingKeywords?.length > 0 && (
-                    <div>
-                      <p className="text-xs font-semibold text-red-600 mb-1.5">✗ Missing ({atsResult.missingKeywords.length})</p>
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        {atsResult.missingKeywords.map((kw) => (
-                          <span key={kw} className="text-xs bg-red-50 text-red-600 border border-red-200 px-1.5 py-0.5 rounded">{kw}</span>
-                        ))}
-                      </div>
+
+                  {/* Missing keywords — split by tier */}
+                  {(atsResult.missingRequired?.length > 0 || atsResult.missingPreferred?.length > 0 || atsResult.missingGeneral?.length > 0) && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-gray-700">Missing Keywords</p>
+                      {atsResult.missingRequired?.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-medium text-red-500 uppercase tracking-wide mb-1">Required</p>
+                          <div className="flex flex-wrap gap-1">
+                            {atsResult.missingRequired.map((kw) => (
+                              <span key={kw} className="text-[10px] bg-red-50 text-red-600 border border-red-200 px-1.5 py-0.5 rounded-full">{kw}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {atsResult.missingPreferred?.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-medium text-orange-500 uppercase tracking-wide mb-1">Preferred</p>
+                          <div className="flex flex-wrap gap-1">
+                            {atsResult.missingPreferred.map((kw) => (
+                              <span key={kw} className="text-[10px] bg-orange-50 text-orange-600 border border-orange-200 px-1.5 py-0.5 rounded-full">{kw}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {atsResult.missingGeneral?.length > 0 && (
+                        <div>
+                          <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide mb-1">General</p>
+                          <div className="flex flex-wrap gap-1">
+                            {atsResult.missingGeneral.map((kw) => (
+                              <span key={kw} className="text-[10px] bg-gray-50 text-gray-500 border border-gray-200 px-1.5 py-0.5 rounded-full">{kw}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
+
+                  {/* Structured suggestion cards */}
                   {atsResult.suggestions?.length > 0 && (
                     <div>
-                      <p className="text-xs font-semibold text-gray-700 mb-1.5">💡 Suggestions</p>
-                      <ul className="space-y-1.5">
-                        {atsResult.suggestions.map((s, i) => (
-                          <li key={i} className="text-xs text-gray-600 bg-yellow-50 border border-yellow-200 rounded p-2">{s}</li>
-                        ))}
-                      </ul>
+                      <p className="text-xs font-semibold text-gray-700 mb-2">Suggestions</p>
+                      <div className="space-y-2">
+                        {atsResult.suggestions.map((s, i) => {
+                          const priorityStyles = {
+                            high: 'bg-red-100 text-red-700',
+                            medium: 'bg-orange-100 text-orange-700',
+                            low: 'bg-gray-100 text-gray-600',
+                          }
+                          const sectionStyles = {
+                            skills: 'bg-blue-100 text-blue-700',
+                            summary: 'bg-purple-100 text-purple-700',
+                            experience: 'bg-green-100 text-green-700',
+                            title: 'bg-yellow-100 text-yellow-700',
+                          }
+                          const priority = (s.priority || 'low').toLowerCase()
+                          const section = (s.section || '').toLowerCase()
+                          const isStructured = s.keyword && s.text
+                          return isStructured ? (
+                            <div key={i} className="border border-gray-200 rounded-lg p-2.5 bg-white space-y-1.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${priorityStyles[priority] || priorityStyles.low}`}>
+                                  {priority}
+                                </span>
+                                {section && (
+                                  <span className={`text-[9px] font-medium uppercase px-1.5 py-0.5 rounded ${sectionStyles[section] || 'bg-gray-100 text-gray-600'}`}>
+                                    {section}
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-semibold text-gray-800">{s.keyword}</span>
+                              </div>
+                              <p className="text-[10px] text-gray-600 leading-relaxed">{s.text}</p>
+                              {s.example && (
+                                <div className="bg-gray-50 border border-gray-200 rounded px-2 py-1">
+                                  <p className="text-[9px] text-gray-400 uppercase font-medium mb-0.5">Example</p>
+                                  <p className="text-[10px] text-gray-700 font-mono leading-relaxed">{s.example}</p>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div key={i} className="text-[10px] text-gray-600 bg-yellow-50 border border-yellow-200 rounded p-2">
+                              {typeof s === 'string' ? s : s.text || JSON.stringify(s)}
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
                   )}
-                  <button onClick={clearAtsResult} className="text-xs text-gray-400 hover:text-gray-600 w-full text-center">Clear results</button>
+
+                  <button onClick={clearAtsResult} className="text-xs text-gray-400 hover:text-gray-600 w-full text-center pt-1">Clear results</button>
                 </div>
               )}
               {!atsResult && !isGenerating && (
@@ -403,6 +533,29 @@ export default function ResumePage() {
               )}
             </div>
           </div>
+        </div>
+
+        {/* Mobile bottom tab bar */}
+        <div className="md:hidden flex border-t border-gray-200 bg-white flex-shrink-0">
+          {[
+            { id: 'editor', label: 'Editor', icon: '✏️' },
+            { id: 'preview', label: 'Preview', icon: '👁' },
+            { id: 'ats', label: 'ATS', icon: '📊' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setMobilePanel(tab.id)}
+              className={`flex-1 py-2.5 flex flex-col items-center gap-0.5 text-[10px] font-semibold transition-colors ${
+                mobilePanel === tab.id
+                  ? 'text-brand-yellow border-t-2 border-brand-yellow -mt-px'
+                  : 'text-gray-400'
+              }`}
+            >
+              <span>{tab.icon}</span>
+              {tab.label}
+            </button>
+          ))}
+        </div>
         </div>
 
         {/* Template Gallery Modal */}
@@ -539,6 +692,8 @@ export default function ResumePage() {
 // ---------------------------------------------------------------------------
 // Resume Card
 // ---------------------------------------------------------------------------
+const RESUME_NATURAL_WIDTH = 816
+
 function ResumeCard({ resume, onOpen, onDelete }) {
   const color = resume.content?._styling?.primaryColor || TEMPLATE_CARD_COLORS[resume.template_name] || '#1A2F5E'
   const rawDate = resume.updatedAt || resume.updated_at
@@ -546,18 +701,35 @@ function ResumeCard({ resume, onOpen, onDelete }) {
     ? new Date(rawDate).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })
     : '—'
 
+  const thumbRef = useRef(null)
+  const [thumbScale, setThumbScale] = useState(0.28)
+  useLayoutEffect(() => {
+    const el = thumbRef.current
+    if (!el) return
+    const obs = new ResizeObserver(([entry]) => {
+      const w = entry.contentRect.width
+      if (w > 0) setThumbScale(w / RESUME_NATURAL_WIDTH)
+    })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
   return (
     <div
+      ref={thumbRef}
       className="group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 overflow-hidden cursor-pointer"
       onClick={onOpen}
     >
-      {/* Live preview thumbnail — same scale trick as TemplateGallery */}
+      {/* Live preview thumbnail */}
       <div className="relative overflow-hidden bg-white border-b border-gray-100" style={{ height: '200px' }}>
         <div
           style={{
-            transform: 'scale(0.27)',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: `${RESUME_NATURAL_WIDTH}px`,
+            transform: `scale(${thumbScale})`,
             transformOrigin: 'top left',
-            width: '370%',
             pointerEvents: 'none',
           }}
         >
