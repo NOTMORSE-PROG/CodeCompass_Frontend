@@ -3,7 +3,7 @@
  * Nav items shown/hidden based on user role.
  * Mobile: slide-in overlay drawer. Desktop (md+): always visible.
  */
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, Link, useNavigate } from 'react-router-dom'
 import {
   HomeIcon,
   MapIcon,
@@ -49,28 +49,24 @@ export default function Sidebar({ isOpen, onClose }) {
   const sidebarContent = (
     <aside className="w-64 bg-white border-r border-gray-200 flex flex-col h-full flex-shrink-0">
       {/* Logo + close button (mobile) */}
-      <div className="px-5 py-5 border-b border-gray-200 flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-brand-yellow rounded-lg flex items-center justify-center flex-shrink-0">
-              <span className="text-brand-black font-black text-base">C</span>
-            </div>
-            <span className="text-brand-black font-extrabold text-xl tracking-tight">
-              Code<span className="text-brand-yellow">Compass</span>
-            </span>
-          </div>
-          <p className="text-gray-400 text-xs mt-1 ml-10 capitalize">
-            {user?.role?.replace(/_/g, ' ')}
-          </p>
-        </div>
+      <div className="px-5 py-5 border-b border-gray-200 relative">
         {/* Close button — mobile only */}
         <button
           onClick={onClose}
-          className="md:hidden p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500"
+          className="md:hidden absolute top-3 right-3 p-1.5 rounded-lg hover:bg-gray-100 transition-colors text-gray-500"
           aria-label="Close menu"
         >
           <XMarkIcon className="w-5 h-5" />
         </button>
+        <Link to="/" className="flex flex-col items-center gap-1 group">
+          <img src="/logo.png" alt="CodeCompass" className="w-16 h-16 object-contain" />
+          <span className="text-brand-black font-extrabold text-xl tracking-tight group-hover:text-brand-yellow transition-colors">
+            Code<span className="text-brand-yellow">Compass</span>
+          </span>
+        </Link>
+        <p className="text-gray-400 text-xs capitalize text-center mt-0.5">
+          {user?.role?.replace(/_/g, ' ')}
+        </p>
       </div>
 
       {/* Nav links */}

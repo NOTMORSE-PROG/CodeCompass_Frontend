@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { BoltIcon, FireIcon, TrophyIcon } from '@heroicons/react/24/solid'
 import { LockClosedIcon } from '@heroicons/react/24/outline'
 import useGamificationStore from '../../stores/gamificationStore'
+import useAuthStore from '../../stores/authStore'
 
 // XP needed per level (every 500 XP = 1 level)
 const XP_PER_LEVEL = 500
@@ -31,6 +32,7 @@ function BadgeCard({ badge, earned }) {
 const PERIOD_LABELS = { weekly: 'This Week', monthly: 'This Month', all_time: 'All Time' }
 
 export default function AchievementsPage() {
+  const { user } = useAuthStore()
   const {
     profile,
     allBadges,
@@ -206,11 +208,15 @@ export default function AchievementsPage() {
             </p>
           ) : (
             <div className="space-y-3">
-              {leaderboard.map((entry) => (
+              {leaderboard.map((entry) => {
+                const isCurrentUser = entry.user?.fullName === user?.fullName
+                return (
                 <div
                   key={entry.rank}
                   className={`flex items-center gap-3 p-2.5 rounded-lg ${
-                    entry.rank === 1 ? 'bg-brand-yellow-pale border border-brand-yellow/30' : 'bg-gray-50'
+                    isCurrentUser
+                      ? 'bg-brand-yellow-pale border border-brand-yellow/30'
+                      : 'bg-gray-50'
                   }`}
                 >
                   <div className={`w-7 h-7 rounded-full flex items-center justify-center font-black text-sm flex-shrink-0 ${
@@ -228,7 +234,7 @@ export default function AchievementsPage() {
                     <div className="text-xs text-brand-gray-mid">{entry.xpEarned?.toLocaleString()} XP</div>
                   </div>
                 </div>
-              ))}
+              )})}
             </div>
           )}
 

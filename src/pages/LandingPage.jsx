@@ -4,6 +4,7 @@
  * Language: English
  */
 import { Link } from 'react-router-dom'
+import useAuthStore from '../stores/authStore'
 import {
   MapIcon,
   ChatBubbleLeftRightIcon,
@@ -83,6 +84,8 @@ const ROLES = [
 
 
 export default function LandingPage() {
+  const { user } = useAuthStore()
+
   return (
     <div className="min-h-screen bg-white">
 
@@ -91,9 +94,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-brand-yellow rounded-lg flex items-center justify-center">
-              <span className="text-brand-black font-black text-base">C</span>
-            </div>
+            <img src="/logo.png" alt="CodeCompass" className="w-10 h-10 object-contain" />
             <span className="text-brand-black font-extrabold text-xl tracking-tight">
               Code<span className="text-brand-yellow">Compass</span>
             </span>
@@ -108,19 +109,31 @@ export default function LandingPage() {
 
           {/* CTAs */}
           <div className="flex items-center gap-3">
-            <Link
-              to="/auth/login"
-              className="text-sm font-medium text-gray-700 hover:text-brand-black transition-colors px-3 py-2"
-            >
-              Log in
-            </Link>
-            <Link
-              to="/auth/register"
-              className="bg-brand-yellow text-brand-black font-semibold text-sm px-4 py-2 rounded-lg
-                         hover:bg-brand-yellow-dark active:scale-95 transition-all"
-            >
-              Get Started
-            </Link>
+            {user ? (
+              <Link
+                to="/app/dashboard"
+                className="bg-brand-yellow text-brand-black font-semibold text-sm px-4 py-2 rounded-lg
+                           hover:bg-brand-yellow-dark active:scale-95 transition-all"
+              >
+                Go to Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  to="/auth/login"
+                  className="text-sm font-medium text-gray-700 hover:text-brand-black transition-colors px-3 py-2"
+                >
+                  Log in
+                </Link>
+                <Link
+                  to="/auth/register"
+                  className="bg-brand-yellow text-brand-black font-semibold text-sm px-4 py-2 rounded-lg
+                             hover:bg-brand-yellow-dark active:scale-95 transition-all"
+                >
+                  Get Started
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -275,21 +288,35 @@ export default function LandingPage() {
           <p className="text-gray-400 text-lg mb-8">
             Free, no credit card required. Your tech career starts here.
           </p>
-          <Link
-            to="/auth/register"
-            className="inline-flex items-center gap-2 bg-brand-yellow text-brand-black font-bold
-                       px-10 py-4 rounded-xl hover:bg-brand-yellow-dark active:scale-95 transition-all
-                       text-base shadow-lg shadow-brand-yellow/20"
-          >
-            Create an Account — It's Free!
-            <ArrowRightIcon className="w-5 h-5" />
-          </Link>
-          <p className="text-gray-600 text-sm mt-4">
-            Already have an account?{' '}
-            <Link to="/auth/login" className="text-brand-yellow hover:underline">
-              Sign in here
+          {user ? (
+            <Link
+              to="/app/dashboard"
+              className="inline-flex items-center gap-2 bg-brand-yellow text-brand-black font-bold
+                         px-10 py-4 rounded-xl hover:bg-brand-yellow-dark active:scale-95 transition-all
+                         text-base shadow-lg shadow-brand-yellow/20"
+            >
+              Go to Dashboard
+              <ArrowRightIcon className="w-5 h-5" />
             </Link>
-          </p>
+          ) : (
+            <>
+              <Link
+                to="/auth/register"
+                className="inline-flex items-center gap-2 bg-brand-yellow text-brand-black font-bold
+                           px-10 py-4 rounded-xl hover:bg-brand-yellow-dark active:scale-95 transition-all
+                           text-base shadow-lg shadow-brand-yellow/20"
+              >
+                Create an Account — It's Free!
+                <ArrowRightIcon className="w-5 h-5" />
+              </Link>
+              <p className="text-gray-600 text-sm mt-4">
+                Already have an account?{' '}
+                <Link to="/auth/login" className="text-brand-yellow hover:underline">
+                  Sign in here
+                </Link>
+              </p>
+            </>
+          )}
         </div>
       </section>
 
@@ -297,9 +324,7 @@ export default function LandingPage() {
       <footer className="bg-brand-black border-t border-brand-black-border py-8">
         <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 bg-brand-yellow rounded-md flex items-center justify-center">
-              <span className="text-brand-black font-black text-xs">C</span>
-            </div>
+            <img src="/logo.png" alt="CodeCompass" className="w-6 h-6 object-contain rounded-md" />
             <span className="text-white font-bold text-sm">
               Code<span className="text-brand-yellow">Compass</span>
             </span>
@@ -308,8 +333,14 @@ export default function LandingPage() {
             © 2026 CodeCompass — Built for CCS Students in the Philippines
           </p>
           <div className="flex items-center gap-4 text-xs text-gray-600">
-            <Link to="/auth/register" className="hover:text-brand-yellow transition-colors">Register</Link>
-            <Link to="/auth/login" className="hover:text-brand-yellow transition-colors">Login</Link>
+            {user ? (
+              <Link to="/app/dashboard" className="hover:text-brand-yellow transition-colors">Dashboard</Link>
+            ) : (
+              <>
+                <Link to="/auth/register" className="hover:text-brand-yellow transition-colors">Register</Link>
+                <Link to="/auth/login" className="hover:text-brand-yellow transition-colors">Login</Link>
+              </>
+            )}
           </div>
         </div>
       </footer>

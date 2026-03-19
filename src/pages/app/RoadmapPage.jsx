@@ -83,7 +83,8 @@ function fireSmallConfetti() {
 }
 
 function hasWrongStructure(nodes) {
-  // Group into phases (split at milestones), detect any phase mixing certs + non-certs
+  // Check each phase independently: cert phases must be cert-only,
+  // project phases must be project-only (no skills/assessments mixed in).
   const phases = []
   let cur = []
   for (const node of nodes) {
@@ -91,11 +92,12 @@ function hasWrongStructure(nodes) {
     else cur.push(node)
   }
   if (cur.length) phases.push(cur)
-  return phases.some(
-    (ph) =>
-      ph.some((n) => n.nodeType === 'certification') &&
-      ph.some((n) => n.nodeType === 'skill' || n.nodeType === 'assessment' || n.nodeType === 'project')
-  )
+  return phases.some((ph) => {
+    const hasCert    = ph.some((n) => n.nodeType === 'certification')
+    const hasProject = ph.some((n) => n.nodeType === 'project')
+    const hasSkill   = ph.some((n) => n.nodeType === 'skill' || n.nodeType === 'assessment')
+    return (hasCert && (hasProject || hasSkill)) || (hasProject && hasSkill)
+  })
 }
 
 function SubSectionDivider({ label }) {

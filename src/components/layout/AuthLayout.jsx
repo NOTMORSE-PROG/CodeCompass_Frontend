@@ -2,7 +2,8 @@
  * Auth layout — white centered card with TIP yellow accent.
  * Used for Login and Register pages.
  */
-import { Outlet, Navigate } from 'react-router-dom'
+import { Outlet, Navigate, Link } from 'react-router-dom'
+import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 import useAuthStore from '../../stores/authStore'
 
 export default function AuthLayout() {
@@ -15,12 +16,21 @@ export default function AuthLayout() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
+      {/* Back to home */}
+      <div className="w-full max-w-md mb-2">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-brand-black transition-colors"
+        >
+          <ArrowLeftIcon className="w-4 h-4" />
+          Back to home
+        </Link>
+      </div>
+
       {/* Logo / Brand */}
       <div className="mb-8 text-center">
         <div className="flex items-center justify-center gap-2 mb-2">
-          <div className="w-9 h-9 bg-brand-yellow rounded-lg flex items-center justify-center">
-            <span className="text-brand-black font-black text-lg">C</span>
-          </div>
+          <img src="/logo.png" alt="CodeCompass" className="w-12 h-12 object-contain" />
           <h1 className="text-3xl font-extrabold text-brand-black tracking-tight">
             Code<span className="text-brand-yellow">Compass</span>
           </h1>
