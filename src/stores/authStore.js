@@ -145,6 +145,34 @@ const useAuthStore = create((set, get) => ({
     }
   },
 
+  /** Permanently delete the authenticated user's account. */
+  deleteAccount: async () => {
+    set({ isLoading: true })
+    try {
+      const { refreshToken } = get()
+      await authApi.deleteAccount(refreshToken)
+      // Close active WebSocket before clearing state
+      const { ws } = useChatStore.getState()
+      if (ws) ws.close()
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      set({ user: null, accessToken: null, refreshToken: null })
+      useRoadmapStore.setState({ roadmaps: [], currentRoadmap: null, isLoading: false, isGenerating: false })
+      useChatStore.setState({
+        sessions: [], currentSession: null, messages: [],
+        streamingContent: '', isStreaming: false, wsConnected: false,
+        suggestions: [], ws: null, _sessionCreating: false,
+      })
+      return { success: true }
+    } catch (error) {
+      const msg = error.response?.data?.detail || 'Failed to delete account.'
+      toast.error(msg)
+      return { success: false }
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
   /** Internal: save tokens and decode user from JWT. */
   _saveSession: ({ access, refresh, user }) => {
     localStorage.setItem('access_token', access)

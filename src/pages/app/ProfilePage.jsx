@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import useAuthStore from '../../stores/authStore'
 import { profileApi } from '../../api/profile'
 import { authApi } from '../../api/auth'
@@ -22,7 +23,8 @@ const CAREER_OPTIONS = [
 const PROGRAMS = ['BSCS', 'BSIT', 'BSIS', 'BSCE', 'Undecided']
 
 export default function ProfilePage() {
-  const { user, connectGoogle, refreshToken, _saveSession } = useAuthStore()
+  const navigate = useNavigate()
+  const { user, connectGoogle, refreshToken, _saveSession, deleteAccount } = useAuthStore()
   const [editing, setEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
@@ -40,6 +42,11 @@ export default function ProfilePage() {
   const [headline, setHeadline] = useState('')
   const [mentorType, setMentorType] = useState('industry')
   const [isVerified, setIsVerified] = useState(false)
+
+  // Delete account modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // Change password modal
   const [showPasswordModal, setShowPasswordModal] = useState(false)
@@ -162,6 +169,16 @@ export default function ProfilePage() {
 
   const handleGoogleConnect = async (credentialResponse) => {
     await connectGoogle(credentialResponse.credential)
+  }
+
+  const handleDeleteAccount = async () => {
+    if (deleteConfirmText !== 'DELETE') return
+    setIsDeleting(true)
+    const result = await deleteAccount()
+    setIsDeleting(false)
+    if (result.success) {
+      navigate('/login', { replace: true })
+    }
   }
 
   const roleLabel = {
@@ -440,12 +457,76 @@ export default function ProfilePage() {
             </div>
           )}
 
-          <button className="w-full text-left px-4 py-3 rounded-lg border border-red-200
-                             hover:bg-red-50 transition-colors text-sm text-red-500">
+          <button
+            onClick={() => setShowDeleteModal(true)}
+            className="w-full text-left px-4 py-3 rounded-lg border border-red-200
+                       hover:bg-red-50 transition-colors text-sm text-red-500"
+          >
             Delete Account
           </button>
         </div>
       </div>
+
+      {/* Delete Account Modal */}
+      {showDeleteModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          onClick={() => { setShowDeleteModal(false); setDeleteConfirmText('') }}
+        >
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
+              <h3 className="font-bold text-brand-black text-lg">Delete Account</h3>
+              <button
+                onClick={() => { setShowDeleteModal(false); setDeleteConfirmText('') }}
+                className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <XMarkIcon className="w-5 h-5 text-brand-gray-mid" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+                <p className="text-sm font-medium text-red-700 mb-1">This action is permanent.</p>
+                <p className="text-xs text-red-600">
+                  Your account, roadmaps, resumes, XP, badges, and all data will be permanently deleted.
+                  This cannot be undone.
+                </p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-brand-gray-mid mb-1.5">
+                  Type <span className="font-bold text-brand-black">DELETE</span> to confirm
+                </label>
+                <input
+                  type="text"
+                  value={deleteConfirmText}
+                  onChange={(e) => setDeleteConfirmText(e.target.value)}
+                  placeholder="DELETE"
+                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-brand-black text-sm
+                             focus:outline-none focus:ring-2 focus:ring-red-400"
+                />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => { setShowDeleteModal(false); setDeleteConfirmText('') }}
+                  className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium
+                             text-brand-gray-mid hover:border-gray-300 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDeleteAccount}
+                  disabled={deleteConfirmText !== 'DELETE' || isDeleting}
+                  className="flex-1 px-4 py-2.5 rounded-lg bg-red-500 text-white text-sm font-medium
+                             hover:bg-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isDeleting ? 'Deleting...' : 'Delete My Account'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Change Password Modal */}
       {showPasswordModal && (

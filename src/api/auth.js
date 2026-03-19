@@ -13,6 +13,7 @@ export const authApi = {
   // Google OAuth
   googleAuth: (credential) => apiClient.post('/auth/google/', { credential }),
   connectGoogle: (credential) => apiClient.post('/auth/connect-google/', { credential }),
+  deleteAccount: (refresh) => apiClient.delete('/auth/delete-account/', { data: { refresh } }),
 }
 
 /**

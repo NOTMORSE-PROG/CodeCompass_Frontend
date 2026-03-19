@@ -204,6 +204,14 @@ export default function OnboardingPage() {
     }
   }, [isStreaming, sessionUUID])
 
+  // Auto-resize textarea as user types
+  useEffect(() => {
+    const ta = inputRef.current
+    if (!ta) return
+    ta.style.height = 'auto'
+    ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'
+  }, [inputText])
+
   const handleSend = (text) => {
     const msg = (text ?? inputText).trim()
     if (!msg || isStreaming || !sessionUUID) return
@@ -406,8 +414,8 @@ export default function OnboardingPage() {
       </div>
 
       {/* Input bar */}
-      <div className="border-t border-white/10 px-4 py-4 flex-shrink-0 max-w-2xl mx-auto w-full">
-        <div className="flex gap-3 items-end">
+      <div className="border-t border-white/10 px-3 py-3 sm:px-4 sm:py-4 flex-shrink-0 max-w-2xl mx-auto w-full">
+        <div className="flex gap-2 sm:gap-3 items-end">
           <textarea
             ref={inputRef}
             value={inputText}
@@ -416,7 +424,7 @@ export default function OnboardingPage() {
             placeholder={isStreaming ? 'CodeCompass is typing...' : 'Type your message...'}
             rows={1}
             disabled={isStreaming || !sessionUUID}
-            className="flex-1 bg-white/10 text-white placeholder-white/25 rounded-xl px-4 py-3 text-sm
+            className="flex-1 bg-white/10 text-white placeholder-white/25 rounded-xl px-3 py-3 sm:px-4 text-sm
                        resize-none focus:outline-none focus:ring-2 focus:ring-brand-yellow/40
                        disabled:opacity-40 transition-opacity"
             style={{ minHeight: '44px', maxHeight: '120px' }}
