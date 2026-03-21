@@ -14,6 +14,7 @@ export default defineConfig({
           'vendor-charts': ['recharts'],
           'vendor-markdown': ['react-markdown', 'react-syntax-highlighter', 'remark-gfm'],
           'vendor-misc': ['react-hot-toast', '@react-oauth/google'],
+          'vendor-pdf': ['pdfjs-dist'],
         },
       },
     },

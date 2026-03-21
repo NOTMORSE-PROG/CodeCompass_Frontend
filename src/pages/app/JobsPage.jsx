@@ -9,10 +9,19 @@ import {
   ArrowTopRightOnSquareIcon,
   CurrencyDollarIcon,
   CalendarDaysIcon,
+  ArrowUpTrayIcon,
+  DocumentTextIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline'
 import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid'
 import { useEffect, useRef, useState } from 'react'
+import * as pdfjsLib from 'pdfjs-dist'
 import useJobsStore from '../../stores/jobsStore'
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString()
 
 const JOB_TYPE_FILTERS = [
   { label: 'All', value: '' },
@@ -33,23 +42,19 @@ function stripHtml(str) {
     .replace(/&quot;/g, '"')
     .replace(/\s{2,}/g, ' ')
     .trim()
-    .replace(/^\.{2,}\s*/, '')   // strip leading ...
-    .replace(/\s*\.{2,}$/, '')   // strip trailing ...
-    .replace(/^…\s*/, '')        // strip leading …
-    .replace(/\s*…$/, '')        // strip trailing …
-    .replace(/\.\.\.\s+\.\.\./g, '—') // merge inline "... ..." gaps
+    .replace(/^\.{2,}\s*/, '')
+    .replace(/\s*\.{2,}$/, '')
+    .replace(/^…\s*/, '')
+    .replace(/\s*…$/, '')
+    .replace(/\.\.\.\s+\.\.\./g, '—')
     .trim()
 }
 
-// Returns true if the description looks like a truncated snippet (Jooble free API)
 function isTruncated(str) {
   if (!str) return false
   const t = str.trim()
-  // Explicit ellipsis markers
   if (t.startsWith('...') || t.endsWith('...') || t.startsWith('…') || t.endsWith('…')) return true
-  // Starts mid-sentence (lowercase first letter) — clearly cut off
   if (/^[a-z]/.test(t)) return true
-  // Very short description (under 400 chars) — almost certainly a snippet
   if (t.length < 400) return true
   return false
 }
@@ -69,10 +74,8 @@ function timeSince(dateStr) {
 }
 
 // ---------------------------------------------------------------------------
-// Description renderer — parses plain text into structured sections
+// Description renderer
 // ---------------------------------------------------------------------------
-
-// Words that are too "sentence-y" to be section header starters
 const FILLER_STARTS = new Set([
   'to', 'in', 'on', 'at', 'is', 'are', 'was', 'were', 'be', 'been',
   'and', 'or', 'but', 'if', 'that', 'this', 'for', 'of', 'as', 'so',
@@ -80,35 +83,21 @@ const FILLER_STARTS = new Set([
   'we', 'our', 'you', 'your', 'it', 'its',
 ])
 
-// Inject newlines so the line-by-line parser can structure flat text
 function preprocessText(text) {
   let result = text
-    // 1. Standard bullets (•) → own lines
     .replace(/\s*•\s*/g, '\n• ')
-
-    // 2. Middle-dot (·) bullets — detect section name before the first ·
-    //    e.g. "landscape. Duties and Responsibilities · Provide..."
     .replace(/(^|[.!?])\s*([A-Z][a-zA-Z\s\-/]{2,50})\s+·\s*/g, (m, prefix, name) => {
       const words = name.trim().split(/\s+/)
       if (words.length <= 6) return `${prefix || ''}\n${name}\n• `
       return m
     })
-    // Convert remaining · to standard bullets
     .replace(/\s*·\s*/g, '\n• ')
-
-    // 3. ALL CAPS inline section headers before regular text
-    //    e.g. "POSITION SUMMARY As an IT Support..."
     .replace(/(^|[.!?\n])\s*([A-Z][A-Z ]{5,49}[A-Z])\s+(?=[A-Z][a-z])/g, (m, prefix, name) => {
       const words = name.trim().split(/\s+/)
       if (words.length <= 5) return `${prefix || ''}\n${name}\n`
       return m
     })
-
-    // 4. Roman numeral headers → own lines
     .replace(/([^\n])[ \t]*([IVX]{1,4}\.\s[A-Z])/g, '$1\n$2')
-
-    // 5. Inline sub-headers after sentence end: "Meet the team:" / "Where you come in:"
-    //    Must be 2–7 words, ≤ 42 chars, not starting with a filler word
     .replace(/([.!?])\s+([A-Z][a-zA-Z''\-/ ]{3,40}:)\s+/g, (m, punct, header) => {
       const words = header.replace(/:$/, '').trim().split(/\s+/)
       const firstWord = words[0].toLowerCase()
@@ -118,23 +107,18 @@ function preprocessText(text) {
       return m
     })
 
-  // 6. If still a wall of text, break at sentence boundaries for readability
   const nonEmpty = result.split('\n').filter((l) => l.trim()).length
   if (nonEmpty <= 2 && result.length > 300) {
     result = result.replace(/([.!?]) (?=[A-Z][a-z])/g, '$1\n')
   }
-
   return result
 }
 
 function classifyLine(line) {
   const trimmed = line.trim()
   if (!trimmed) return 'empty'
-  // Roman numeral section header: I. II. III. IV. etc.
   if (/^[IVX]+\.\s/.test(trimmed)) return 'section'
-  // Short line ending with colon → sub-header
   if (trimmed.endsWith(':') && trimmed.length < 80) return 'subheader'
-  // Bullet point
   if (trimmed.startsWith('•') || trimmed.startsWith('-') || trimmed.startsWith('*')) return 'bullet'
   return 'text'
 }
@@ -154,23 +138,11 @@ function DescriptionBody({ text }) {
   for (const line of lines) {
     const kind = classifyLine(line)
     const trimmed = line.trim()
-
-    if (kind === 'empty') {
-      flushPara()
-      continue
-    }
-    if (kind === 'section') {
-      flushPara()
-      blocks.push({ type: 'section', content: trimmed })
-    } else if (kind === 'subheader') {
-      flushPara()
-      blocks.push({ type: 'subheader', content: trimmed })
-    } else if (kind === 'bullet') {
-      flushPara()
-      blocks.push({ type: 'bullet', content: trimmed.replace(/^[•\-*]\s*/, '') })
-    } else {
-      paraBuffer.push(trimmed)
-    }
+    if (kind === 'empty') { flushPara(); continue }
+    if (kind === 'section') { flushPara(); blocks.push({ type: 'section', content: trimmed }) }
+    else if (kind === 'subheader') { flushPara(); blocks.push({ type: 'subheader', content: trimmed }) }
+    else if (kind === 'bullet') { flushPara(); blocks.push({ type: 'bullet', content: trimmed.replace(/^[•\-*]\s*/, '') }) }
+    else { paraBuffer.push(trimmed) }
   }
   flushPara()
 
@@ -178,9 +150,7 @@ function DescriptionBody({ text }) {
     <div className="space-y-0.5">
       {blocks.map((block, i) => {
         if (block.type === 'section') return (
-          <h3 key={i} className="text-sm font-bold text-brand-black mt-4 mb-1 first:mt-0">
-            {block.content}
-          </h3>
+          <h3 key={i} className="text-sm font-bold text-brand-black mt-4 mb-1 first:mt-0">{block.content}</h3>
         )
         if (block.type === 'subheader') return (
           <p key={i} className="text-xs font-semibold text-brand-black mt-3 mb-0.5 uppercase tracking-wide">
@@ -194,9 +164,7 @@ function DescriptionBody({ text }) {
           </div>
         )
         return (
-          <p key={i} className="text-sm text-brand-gray-mid leading-relaxed py-0.5">
-            {block.content}
-          </p>
+          <p key={i} className="text-sm text-brand-gray-mid leading-relaxed py-0.5">{block.content}</p>
         )
       })}
     </div>
@@ -213,7 +181,6 @@ function JobModal({ job, onClose }) {
   const truncated = isTruncated(job.description)
   const posted = timeSince(job.fetchedAt)
 
-  // Close on Escape
   useEffect(() => {
     const handler = (e) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', handler)
@@ -221,34 +188,22 @@ function JobModal({ job, onClose }) {
   }, [onClose])
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      onClick={onClose}
-    >
-      {/* Backdrop */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-
-      {/* Panel */}
       <div
         className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="px-6 pt-6 pb-4 border-b border-gray-100">
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
               <h2 className="text-lg font-bold text-brand-black leading-snug">{job.title}</h2>
               <p className="text-brand-gray-mid font-medium text-sm mt-0.5">{job.company}</p>
             </div>
-            <button
-              onClick={onClose}
-              className="flex-shrink-0 p-1.5 rounded-lg text-brand-gray-mid hover:bg-gray-100 transition-colors"
-            >
+            <button onClick={onClose} className="flex-shrink-0 p-1.5 rounded-lg text-brand-gray-mid hover:bg-gray-100 transition-colors">
               <XMarkIcon className="w-5 h-5" />
             </button>
           </div>
-
-          {/* Meta pills */}
           <div className="flex flex-wrap gap-2 mt-3">
             {job.location && (
               <span className="flex items-center gap-1 text-xs text-brand-gray-mid bg-gray-100 px-2.5 py-1 rounded-full">
@@ -272,8 +227,6 @@ function JobModal({ job, onClose }) {
             )}
           </div>
         </div>
-
-        {/* Description */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {description ? (
             <>
@@ -288,8 +241,6 @@ function JobModal({ job, onClose }) {
             <p className="text-sm text-brand-gray-mid italic">No description available.</p>
           )}
         </div>
-
-        {/* Footer actions */}
         <div className="px-6 py-4 border-t border-gray-100 flex items-center gap-3">
           <button
             onClick={() => isSaved ? unsaveJob(job.id) : saveJob(job.id)}
@@ -299,13 +250,9 @@ function JobModal({ job, onClose }) {
                 : 'border-gray-200 text-brand-gray-mid hover:border-brand-yellow hover:text-brand-yellow'
               }`}
           >
-            {isSaved
-              ? <BookmarkSolidIcon className="w-4 h-4" />
-              : <BookmarkIcon className="w-4 h-4" />
-            }
+            {isSaved ? <BookmarkSolidIcon className="w-4 h-4" /> : <BookmarkIcon className="w-4 h-4" />}
             {isSaved ? 'Saved' : 'Save Job'}
           </button>
-
           {job.applyUrl ? (
             <a
               href={job.applyUrl}
@@ -329,9 +276,9 @@ function JobModal({ job, onClose }) {
 }
 
 // ---------------------------------------------------------------------------
-// Job Card (grid tile)
+// Job Card
 // ---------------------------------------------------------------------------
-function JobCard({ job, isRecommended = false, onClick }) {
+function JobCard({ job, isRecommended = false, matchTerms = [], onClick }) {
   const { savedJobIds, saveJob, unsaveJob } = useJobsStore()
   const isSaved = savedJobIds.has(job.id)
   const snippet = stripHtml(job.description)
@@ -347,7 +294,6 @@ function JobCard({ job, isRecommended = false, onClick }) {
       onClick={onClick}
       className="card cursor-pointer hover:border-brand-yellow hover:shadow-md transition-all flex flex-col h-full"
     >
-      {/* Top: title + badge + save */}
       <div className="flex items-start justify-between gap-2 mb-2">
         <div className="flex-1 min-w-0">
           {isRecommended && (
@@ -361,17 +307,10 @@ function JobCard({ job, isRecommended = false, onClick }) {
             isSaved ? 'text-brand-yellow' : 'text-gray-300 hover:text-brand-yellow'
           }`}
         >
-          {isSaved
-            ? <BookmarkSolidIcon className="w-4 h-4" />
-            : <BookmarkIcon className="w-4 h-4" />
-          }
+          {isSaved ? <BookmarkSolidIcon className="w-4 h-4" /> : <BookmarkIcon className="w-4 h-4" />}
         </button>
       </div>
-
-      {/* Company */}
       <p className="text-xs text-brand-gray-mid font-medium mb-2 truncate">{job.company}</p>
-
-      {/* Meta */}
       <div className="flex flex-wrap gap-1.5 mb-3">
         {job.location && (
           <span className="flex items-center gap-0.5 text-[10px] text-brand-gray-mid bg-gray-50 px-1.5 py-0.5 rounded-md">
@@ -384,22 +323,29 @@ function JobCard({ job, isRecommended = false, onClick }) {
           </span>
         )}
       </div>
-
-      {/* Salary */}
       {job.salaryRange && (
         <p className="text-xs font-bold text-brand-black mb-2">{job.salaryRange}</p>
       )}
-
-      {/* Snippet */}
       {snippet && (
         <p className="text-[11px] text-brand-gray-mid line-clamp-2 leading-relaxed flex-1">{snippet}</p>
       )}
 
-      {/* Footer */}
+      {/* Match reasons — only shown on recommended cards */}
+      {isRecommended && matchTerms.length > 0 && (
+        <div className="mt-2 pt-2 border-t border-brand-yellow/20">
+          <p className="text-[9px] uppercase tracking-wider text-brand-gray-mid font-semibold mb-1">Matched from your resume</p>
+          <div className="flex flex-wrap gap-1">
+            {matchTerms.map((term) => (
+              <span key={term} className="text-[10px] bg-brand-yellow/15 text-brand-black font-medium px-1.5 py-0.5 rounded-md">
+                {term}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="mt-3 pt-2.5 border-t border-gray-100 flex items-center justify-between">
-        {posted && (
-          <span className="text-[10px] text-brand-gray-mid">{posted}</span>
-        )}
+        {posted && <span className="text-[10px] text-brand-gray-mid">{posted}</span>}
         <span className="text-[10px] font-semibold text-brand-yellow ml-auto">View details →</span>
       </div>
     </div>
@@ -422,20 +368,119 @@ function JobCardSkeleton() {
 }
 
 // ---------------------------------------------------------------------------
+// PDF Resume Upload Banner
+// ---------------------------------------------------------------------------
+async function extractPdfText(file) {
+  const arrayBuffer = await file.arrayBuffer()
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
+  let text = ''
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i)
+    const content = await page.getTextContent()
+    text += content.items.map((item) => item.str).join(' ') + '\n'
+  }
+  return text.trim()
+}
+
+function ResumeBanner({ pdfFileName, isPdfLoading, hasPdfRecommendations, onFileSelect, onClear }) {
+  const fileInputRef = useRef(null)
+  const [isDragging, setIsDragging] = useState(false)
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setIsDragging(false)
+    const file = e.dataTransfer.files[0]
+    if (file?.type === 'application/pdf') onFileSelect(file)
+  }
+
+  // Active state: analyzing or already loaded
+  if (isPdfLoading || hasPdfRecommendations) {
+    return (
+      <div className="mb-5 flex items-center gap-3 px-4 py-3 rounded-xl bg-brand-yellow/10 border border-brand-yellow/30">
+        <SparklesIcon className="w-4 h-4 text-brand-yellow flex-shrink-0" />
+        {isPdfLoading ? (
+          <span className="text-sm text-brand-black font-medium flex-1">
+            Analyzing your resume…
+            <span className="inline-flex gap-0.5 ml-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-brand-yellow animate-bounce [animation-delay:0ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-brand-yellow animate-bounce [animation-delay:150ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-brand-yellow animate-bounce [animation-delay:300ms]" />
+            </span>
+          </span>
+        ) : (
+          <span className="text-sm text-brand-black font-medium flex-1 flex items-center gap-1.5 min-w-0">
+            <DocumentTextIcon className="w-4 h-4 text-brand-gray-mid flex-shrink-0" />
+            <span className="truncate text-brand-gray-mid">{pdfFileName}</span>
+            <span className="text-brand-gray-mid flex-shrink-0">— showing matched jobs</span>
+          </span>
+        )}
+        {!isPdfLoading && (
+          <button
+            onClick={onClear}
+            className="flex-shrink-0 p-1 rounded-md text-brand-gray-mid hover:bg-brand-yellow/20 transition-colors"
+            title="Remove resume"
+          >
+            <XMarkIcon className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  // Default state: upload CTA
+  return (
+    <div
+      className={`mb-5 flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer
+        transition-colors select-none
+        ${isDragging
+          ? 'border-brand-yellow bg-brand-yellow/10'
+          : 'border-gray-200 bg-gray-50 hover:border-brand-yellow hover:bg-brand-yellow/5'
+        }`}
+      onClick={() => fileInputRef.current?.click()}
+      onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+      onDragLeave={() => setIsDragging(false)}
+      onDrop={handleDrop}
+    >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files[0]
+          if (file) { onFileSelect(file); e.target.value = '' }
+        }}
+      />
+      <ArrowUpTrayIcon className="w-4 h-4 text-brand-gray-mid flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <span className="text-sm font-medium text-brand-black">Upload your resume PDF </span>
+        <span className="text-sm text-brand-gray-mid">to get personalized job matches</span>
+      </div>
+      <span className="flex-shrink-0 text-xs font-semibold text-brand-yellow bg-brand-yellow/10 px-2.5 py-1 rounded-full">
+        PDF only
+      </span>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 export default function JobsPage() {
   const {
-    jobs, recommendedJobs, savedJobs,
-    isLoading, isLoadingRecommended, error,
+    jobs, savedJobs,
+    isLoading, error,
     totalCount, currentPage, pageSize,
-    fetchJobs, fetchRecommended, fetchSavedJobs,
+    pdfRecommendations, isPdfLoading, hasPdfRecommendations,
+    fetchJobs, fetchSavedJobs,
+    getRecommendationsFromResume, clearPdfRecommendations,
   } = useJobsStore()
 
   const [activeTab, setActiveTab] = useState('all')
   const [searchInput, setSearchInput] = useState('')
   const [activeFilter, setActiveFilter] = useState('')
   const [selectedJob, setSelectedJob] = useState(null)
+  const [pdfFileName, setPdfFileName] = useState('')
   const debounceRef = useRef(null)
 
   const totalPages = Math.ceil(totalCount / pageSize)
@@ -449,8 +494,8 @@ export default function JobsPage() {
 
   useEffect(() => {
     fetchSavedJobs()
-    fetchJobs({ page: 1 }).then(() => fetchRecommended())
-  }, [fetchSavedJobs, fetchJobs, fetchRecommended])
+    fetchJobs({ page: 1 })
+  }, [fetchSavedJobs, fetchJobs])
 
   useEffect(() => {
     if (activeTab !== 'all') return
@@ -465,6 +510,22 @@ export default function JobsPage() {
   const handleTabChange = (tab) => {
     setActiveTab(tab)
     if (tab === 'saved') fetchSavedJobs()
+  }
+
+  const handlePdfSelect = async (file) => {
+    setPdfFileName(file.name)
+    try {
+      const text = await extractPdfText(file)
+      await getRecommendationsFromResume(text)
+    } catch {
+      clearPdfRecommendations()
+      setPdfFileName('')
+    }
+  }
+
+  const handleClearPdf = () => {
+    clearPdfRecommendations()
+    setPdfFileName('')
   }
 
   const goToPage = (page) => {
@@ -519,7 +580,7 @@ export default function JobsPage() {
         <div>
           <h1 className="text-2xl font-bold text-brand-black">Job Board</h1>
           <p className="text-brand-gray-mid text-sm mt-0.5">
-            IT jobs in the Philippines — matched to your career path.
+            IT jobs in the Philippines.
           </p>
         </div>
         <span className="badge-yellow">Philippines Only</span>
@@ -549,6 +610,16 @@ export default function JobsPage() {
       {/* ── ALL JOBS ── */}
       {activeTab === 'all' && (
         <>
+          {/* Resume upload banner */}
+          <ResumeBanner
+            pdfFileName={pdfFileName}
+            isPdfLoading={isPdfLoading}
+            hasPdfRecommendations={hasPdfRecommendations}
+            onFileSelect={handlePdfSelect}
+            onClear={handleClearPdf}
+          />
+
+          {/* Search + filters */}
           <div className="flex gap-3 mb-3">
             <div className="relative flex-1">
               <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray-mid pointer-events-none" />
@@ -570,21 +641,25 @@ export default function JobsPage() {
             ))}
           </div>
 
-          {/* Recommended */}
-          {(isLoadingRecommended || recommendedJobs.length > 0) && (
+          {/* PDF-based recommendations (only when resume uploaded) */}
+          {hasPdfRecommendations && pdfRecommendations.length > 0 && (
             <div className="mb-6">
-              <h2 className="text-sm font-bold text-brand-black mb-3">Recommended for You</h2>
-              {isLoadingRecommended ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {[1, 2, 3].map((n) => <JobCardSkeleton key={n} />)}
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {recommendedJobs.map((job) => (
-                    <JobCard key={job.id} job={job} isRecommended onClick={() => setSelectedJob(job)} />
-                  ))}
-                </div>
-              )}
+              <div className="flex items-center gap-2 mb-3">
+                <SparklesIcon className="w-4 h-4 text-brand-yellow" />
+                <h2 className="text-sm font-bold text-brand-black">Recommended for You</h2>
+                <span className="text-xs text-brand-gray-mid">based on your resume</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {pdfRecommendations.map((job) => (
+                  <JobCard
+                    key={job.id}
+                    job={job}
+                    isRecommended
+                    matchTerms={job.matchTerms ?? []}
+                    onClick={() => setSelectedJob(job)}
+                  />
+                ))}
+              </div>
               <div className="mt-5 mb-3 border-t border-gray-100 pt-4">
                 <h2 className="text-sm font-bold text-brand-black">All Jobs</h2>
               </div>

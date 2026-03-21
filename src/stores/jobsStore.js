@@ -8,6 +8,9 @@ const useJobsStore = create((set) => ({
   savedJobIds: new Set(),
   isLoading: false,
   isLoadingRecommended: false,
+  pdfRecommendations: [],
+  isPdfLoading: false,
+  hasPdfRecommendations: false,
   error: null,
   totalCount: 0,
   currentPage: 1,
@@ -49,6 +52,22 @@ const useJobsStore = create((set) => ({
     } finally {
       set({ isLoadingRecommended: false })
     }
+  },
+
+  getRecommendationsFromResume: async (resumeText) => {
+    set({ isPdfLoading: true })
+    try {
+      const { data } = await jobsApi.recommendFromResume(resumeText)
+      set({ pdfRecommendations: data, hasPdfRecommendations: true })
+    } catch {
+      set({ pdfRecommendations: [], hasPdfRecommendations: false })
+    } finally {
+      set({ isPdfLoading: false })
+    }
+  },
+
+  clearPdfRecommendations: () => {
+    set({ pdfRecommendations: [], hasPdfRecommendations: false, isPdfLoading: false })
   },
 
   fetchSavedJobs: async () => {

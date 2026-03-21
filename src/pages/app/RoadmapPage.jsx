@@ -172,22 +172,32 @@ function loadYouTubeApi() {
 
 /**
  * YouTubePlayer — wraps YT.Player with:
- *   - timestamp resume (saves every 5 s to localStorage)
- *   - fires onWatchedEnough(pct) when ≥60 % watched (unlocks quiz)
+ *   - timestamp resume (saves every 1 s to localStorage)
+ *   - seek-forward prevention: snaps back if user tries to skip ahead
+ *   - fires onWatchedEnough(secs) after 5 continuous minutes of watch time (resets on leave)
  *   - fires onEnded() when video finishes
  */
-function YouTubePlayer({ videoId, resourceId, onWatchedEnough, onEnded }) {
+function YouTubePlayer({ videoId, resourceId, onWatchedEnough, onTimeUpdate, onEnded }) {
   const divRef = useRef(null)
   const playerRef = useRef(null)
   const intervalRef = useRef(null)
   const unlockedRef = useRef(false)
+  const maxWatchedRef = useRef(0)   // high-water mark: furthest position reached (seconds)
+  const cumulativeRef = useRef(0)   // total accumulated playback seconds
+  const lastWallRef   = useRef(null) // wall-clock ms at last interval tick
   const LS_KEY = `cc_vid_${resourceId}_t`
 
   useEffect(() => {
     let mounted = true
     loadYouTubeApi().then((YT) => {
       if (!mounted || !divRef.current) return
+
       const savedTime = parseFloat(localStorage.getItem(LS_KEY) || '0') || 0
+      // maxWatched starts at the resume position so seek-prevention works correctly
+      maxWatchedRef.current = savedTime
+      // cumulative always resets — leaving the video means starting the 5-min timer over
+      cumulativeRef.current = 0
+      lastWallRef.current   = null
 
       playerRef.current = new YT.Player(divRef.current, {
         videoId,
@@ -200,28 +210,48 @@ function YouTubePlayer({ videoId, resourceId, onWatchedEnough, onEnded }) {
           onStateChange(e) {
             const P = YT.PlayerState
             if (e.data === P.PLAYING) {
+              lastWallRef.current = Date.now()
               intervalRef.current = setInterval(() => {
-                const t = playerRef.current?.getCurrentTime?.() ?? 0
-                const d = playerRef.current?.getDuration?.() ?? 0
-                localStorage.setItem(LS_KEY, String(t))
-                if (d > 0 && !unlockedRef.current && t / d >= 0.6) {
-                  unlockedRef.current = true
-                  onWatchedEnough?.(t / d)
+                const t   = playerRef.current?.getCurrentTime?.() ?? 0
+                const now = Date.now()
+
+                // ── seek-forward prevention ──────────────────────────────
+                if (t > maxWatchedRef.current + 3) {
+                  playerRef.current.seekTo(maxWatchedRef.current, true)
+                  lastWallRef.current = Date.now()
+                  return
                 }
-              }, 5000)
+
+                // ── accumulate real watch time ───────────────────────────
+                if (lastWallRef.current !== null) {
+                  const elapsed = (now - lastWallRef.current) / 1000
+                  cumulativeRef.current += elapsed
+                }
+                lastWallRef.current = now
+
+                // ── advance high-water mark ──────────────────────────────
+                if (t > maxWatchedRef.current) maxWatchedRef.current = t
+
+                // ── persist resume position only (cumulative is intentionally in-memory) ──
+                localStorage.setItem(LS_KEY, String(t))
+
+                // ── notify parent of current watch time (drives the visual timer) ─
+                onTimeUpdate?.(Math.min(cumulativeRef.current, 300))
+
+                // ── unlock quiz after 5 minutes of real watch time ───────
+                if (!unlockedRef.current && cumulativeRef.current >= 300) {
+                  unlockedRef.current = true
+                  onWatchedEnough?.(cumulativeRef.current)
+                }
+              }, 1000)
             } else {
               clearInterval(intervalRef.current)
+              lastWallRef.current = null  // stop accumulating while paused/ended
               const t = playerRef.current?.getCurrentTime?.() ?? 0
-              const d = playerRef.current?.getDuration?.() ?? 0
               if (t > 0) localStorage.setItem(LS_KEY, String(t))
               if (e.data === P.ENDED) {
                 localStorage.removeItem(LS_KEY)
                 onEnded?.()
-              }
-              // Also check threshold on pause in case they scrubbed ahead
-              if (d > 0 && !unlockedRef.current && t / d >= 0.6) {
-                unlockedRef.current = true
-                onWatchedEnough?.(t / d)
               }
             }
           },
@@ -649,8 +679,8 @@ function ActiveLessonContent({
   onMarkLessonDone,
 }) {
   const [modalOpen, setModalOpen] = useState(false)
-  // quizUnlocked: true once user has watched ≥60% of the video (or already done)
   const [quizUnlocked, setQuizUnlocked] = useState(isDone)
+  const [watchedSecs, setWatchedSecs] = useState(0)
   // Holds { results, questions } immediately after passing so breakdown stays visible
   const [justPassedData, setJustPassedData] = useState(null)
 
@@ -672,6 +702,7 @@ function ActiveLessonContent({
           videoId={videoId}
           resourceId={resource.id}
           onWatchedEnough={() => setQuizUnlocked(true)}
+          onTimeUpdate={(s) => setWatchedSecs(s)}
           onEnded={() => setQuizUnlocked(true)}
         />
         <div className="px-3 py-2 bg-gray-50">
@@ -702,9 +733,34 @@ function ActiveLessonContent({
               onAssessmentPassed={handleAssessmentPassed}
             />
           ) : (
-            <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 border border-gray-200">
-              <span className="text-gray-400 text-base">🔒</span>
-              <span className="text-sm text-gray-500">Watch at least 60% of the video to unlock the quiz.</span>
+            <div className="mt-2 rounded-lg bg-gray-100 border border-gray-200 px-3 py-3 space-y-2.5">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-400 text-base">🔒</span>
+                  <span className="text-sm text-gray-600 font-medium">Watch 5 minutes to unlock the quiz</span>
+                </div>
+                <span className="text-sm font-bold tabular-nums text-brand-black">
+                  {`${Math.floor(watchedSecs / 60)}:${String(Math.floor(watchedSecs % 60)).padStart(2, '0')}`}
+                  <span className="text-xs font-normal text-gray-400"> / 5:00</span>
+                </span>
+              </div>
+              {/* Progress bar */}
+              <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all duration-1000"
+                  style={{
+                    width: `${(watchedSecs / 300) * 100}%`,
+                    background: watchedSecs >= 240
+                      ? '#22c55e'  // green when close
+                      : '#f59e0b', // amber otherwise
+                  }}
+                />
+              </div>
+              {/* Warning */}
+              <p className="text-xs text-amber-600 font-medium">
+                Heads up — leaving or switching lessons resets your timer back to 0:00.
+              </p>
             </div>
           )}
         </div>
