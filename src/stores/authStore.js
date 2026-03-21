@@ -26,6 +26,7 @@ const _userFromToken = (token) => {
     fullName: payload.full_name || '',
     role: payload.role || null,
     isOnboarded: payload.is_onboarded ?? false,
+    emailVerified: payload.email_verified ?? false,
     hasPassword: payload.has_password ?? true,
     googleConnected: payload.google_connected ?? false,
   }
@@ -188,6 +189,7 @@ const useAuthStore = create((set, get) => ({
         fullName: payload?.full_name || (user?.firstName ? `${user.firstName} ${user.lastName}`.trim() : ''),
         role: payload?.role || null,
         isOnboarded: payload?.is_onboarded ?? user?.isOnboarded ?? false,
+        emailVerified: payload?.email_verified ?? user?.emailVerified ?? false,
         hasPassword: payload?.has_password ?? true,
         googleConnected: payload?.google_connected ?? false,
       },
@@ -208,6 +210,7 @@ export const decodeAndUpdateUser = (accessToken) => {
       ...state.user,
       role: payload.role ?? state.user.role,
       isOnboarded: payload.is_onboarded ?? state.user.isOnboarded,
+      emailVerified: payload.email_verified ?? state.user.emailVerified,
       hasPassword: payload.has_password ?? state.user.hasPassword,
       googleConnected: payload.google_connected ?? state.user.googleConnected,
     } : null,

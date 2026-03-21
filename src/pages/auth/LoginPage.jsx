@@ -26,6 +26,7 @@ export default function LoginPage() {
   } = useForm({ resolver: zodResolver(schema) })
 
   const getPostLoginRoute = (user) => {
+    if (!user?.emailVerified) return '/verify-email-pending'
     if (user?.isOnboarded) return '/app/dashboard'
     return '/onboarding'
   }
@@ -76,9 +77,17 @@ export default function LoginPage() {
 
         {/* Password */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Password
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-sm font-medium text-gray-700">
+              Password
+            </label>
+            <Link
+              to="/auth/forgot-password"
+              className="text-xs text-gray-400 hover:text-brand-black transition-colors"
+            >
+              Forgot password?
+            </Link>
+          </div>
           <input
             type="password"
             placeholder="••••••••"

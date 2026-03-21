@@ -11,6 +11,10 @@ import LandingPage from './pages/LandingPage'
 // Auth pages
 import LoginPage from './pages/auth/LoginPage'
 import RegisterPage from './pages/auth/RegisterPage'
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage'
+import ResetPasswordPage from './pages/auth/ResetPasswordPage'
+import VerifyEmailPendingPage from './pages/auth/VerifyEmailPendingPage'
+import VerifyEmailCallbackPage from './pages/auth/VerifyEmailCallbackPage'
 
 // Onboarding pages
 import OnboardingPage from './pages/onboarding/OnboardingPage'
@@ -39,9 +43,17 @@ export default function App() {
         <Route element={<AuthLayout />}>
           <Route path="/auth/login" element={<LoginPage />} />
           <Route path="/auth/register" element={<RegisterPage />} />
+          <Route path="/auth/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password/:uidb64/:token" element={<ResetPasswordPage />} />
         </Route>
 
-        {/* Onboarding — authenticated but not yet onboarded */}
+        {/* Email verification — authenticated but not yet verified */}
+        <Route element={<ProtectedRoute skipEmailCheck />}>
+          <Route path="/verify-email-pending" element={<VerifyEmailPendingPage />} />
+          <Route path="/verify-email/:token" element={<VerifyEmailCallbackPage />} />
+        </Route>
+
+        {/* Onboarding — authenticated + email verified but not yet onboarded */}
         <Route element={<ProtectedRoute requireOnboarded={false} />}>
           <Route element={<OnboardingLayout />}>
             <Route path="/onboarding" element={<OnboardingPage />} />

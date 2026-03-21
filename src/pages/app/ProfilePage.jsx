@@ -50,11 +50,12 @@ export default function ProfilePage() {
 
   // Change password modal
   const [showPasswordModal, setShowPasswordModal] = useState(false)
-  const [oldPassword, setOldPassword] = useState('')
+  const [pwStep, setPwStep] = useState('send')   // 'send' | 'verify'
+  const [isSendingOtp, setIsSendingOtp] = useState(false)
+  const [otp, setOtp] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [isSavingPassword, setIsSavingPassword] = useState(false)
-  const [showOld, setShowOld] = useState(false)
   const [showNew, setShowNew] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
 
@@ -119,34 +120,42 @@ export default function ProfilePage() {
     }
   }
 
+  const handleSendOtp = async () => {
+    setIsSendingOtp(true)
+    try {
+      await authApi.sendChangePasswordOtp()
+      setPwStep('verify')
+      toast.success('Code sent to your email.')
+    } catch {
+      toast.error('Failed to send code. Try again.')
+    } finally {
+      setIsSendingOtp(false)
+    }
+  }
+
   const handleChangePassword = async (e) => {
     e.preventDefault()
-    if (isSavingPassword) return  // Bug fix B: guard against Enter-key double-submit
+    if (isSavingPassword) return
     if (newPassword !== confirmPassword) {
-      toast.error('New passwords do not match.')
+      toast.error('Passwords do not match.')
       return
     }
     setIsSavingPassword(true)
     try {
-      // Send refresh token so the backend can blacklist it and return fresh tokens
       const { data } = await authApi.changePassword({
-        old_password: oldPassword,
+        otp,
         new_password: newPassword,
         new_password_confirm: confirmPassword,
         refresh: refreshToken,
       })
-      // Update the session with the fresh token pair returned by the server
-      if (data?.access) {
-        _saveSession(data)
-      }
+      if (data?.access) _saveSession(data)
       handleClosePasswordModal()
       toast.success('Password changed successfully.')
     } catch (err) {
-      // Bug fix A: CamelCaseJSONRenderer converts DRF error keys to camelCase
       const d = err.response?.data
       const first = (arr) => (Array.isArray(arr) ? arr[0] : arr)
       const msg =
-        first(d?.oldPassword) ||
+        first(d?.otp) ||
         first(d?.newPassword) ||
         first(d?.newPasswordConfirm) ||
         d?.detail ||
@@ -159,10 +168,10 @@ export default function ProfilePage() {
 
   const handleClosePasswordModal = () => {
     setShowPasswordModal(false)
-    setOldPassword('')
+    setPwStep('send')
+    setOtp('')
     setNewPassword('')
     setConfirmPassword('')
-    setShowOld(false)
     setShowNew(false)
     setShowConfirm(false)
   }
@@ -534,103 +543,123 @@ export default function ProfilePage() {
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
           onClick={handleClosePasswordModal}
         >
-          {/* Bug fix #4: stopPropagation prevents backdrop click from reaching inner card */}
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100">
               <h3 className="font-bold text-brand-black text-lg">Change Password</h3>
-              <button
-                onClick={handleClosePasswordModal}
-                className="p-1 rounded-lg hover:bg-gray-100 transition-colors"
-              >
+              <button onClick={handleClosePasswordModal} className="p-1 rounded-lg hover:bg-gray-100 transition-colors">
                 <XMarkIcon className="w-5 h-5 text-brand-gray-mid" />
               </button>
             </div>
-            <form onSubmit={handleChangePassword} className="px-6 py-5 space-y-4">
-              {/* Current password */}
-              <div>
-                <label className="block text-xs font-medium text-brand-gray-mid mb-1.5">Current Password</label>
-                <div className="relative">
-                  <input
-                    type={showOld ? 'text' : 'password'}
-                    value={oldPassword}
-                    onChange={(e) => setOldPassword(e.target.value)}
-                    required
-                    className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-200 text-brand-black text-sm
-                               focus:outline-none focus:ring-2 focus:ring-brand-yellow"
-                  />
+
+            {/* Step 1 — Send OTP */}
+            {pwStep === 'send' && (
+              <div className="px-6 py-5">
+                <p className="text-sm text-brand-gray-mid mb-5">
+                  We'll send a 6-digit verification code to{' '}
+                  <span className="font-semibold text-brand-black">{user?.email}</span>.
+                </p>
+                <div className="flex gap-3">
                   <button
                     type="button"
-                    onClick={() => setShowOld((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-gray-mid hover:text-brand-black"
+                    onClick={handleClosePasswordModal}
+                    className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium
+                               text-brand-gray-mid hover:border-gray-300 transition-colors"
                   >
-                    {showOld ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendOtp}
+                    disabled={isSendingOtp}
+                    className="flex-1 px-4 py-2.5 rounded-lg bg-brand-yellow text-brand-black text-sm font-medium
+                               hover:bg-brand-yellow-dark transition-colors disabled:opacity-50"
+                  >
+                    {isSendingOtp ? 'Sending…' : 'Send Code'}
                   </button>
                 </div>
               </div>
+            )}
 
-              {/* New password */}
-              <div>
-                <label className="block text-xs font-medium text-brand-gray-mid mb-1.5">New Password</label>
-                <div className="relative">
+            {/* Step 2 — Enter OTP + new password */}
+            {pwStep === 'verify' && (
+              <form onSubmit={handleChangePassword} className="px-6 py-5 space-y-4">
+                <p className="text-xs text-brand-gray-mid">
+                  Enter the 6-digit code sent to your email and choose a new password.
+                </p>
+
+                {/* OTP */}
+                <div>
+                  <label className="block text-xs font-medium text-brand-gray-mid mb-1.5">Verification Code</label>
                   <input
-                    type={showNew ? 'text' : 'password'}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                    placeholder="000000"
                     required
-                    className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-200 text-brand-black text-sm
-                               focus:outline-none focus:ring-2 focus:ring-brand-yellow"
+                    className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-brand-black text-sm
+                               focus:outline-none focus:ring-2 focus:ring-brand-yellow tracking-widest text-center"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setShowNew((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-gray-mid hover:text-brand-black"
-                  >
-                    {showNew ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                </div>
+
+                {/* New password */}
+                <div>
+                  <label className="block text-xs font-medium text-brand-gray-mid mb-1.5">New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showNew ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      required
+                      className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-200 text-brand-black text-sm
+                                 focus:outline-none focus:ring-2 focus:ring-brand-yellow"
+                    />
+                    <button type="button" onClick={() => setShowNew((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-gray-mid hover:text-brand-black">
+                      {showNew ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirm password */}
+                <div>
+                  <label className="block text-xs font-medium text-brand-gray-mid mb-1.5">Confirm New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirm ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                      className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-200 text-brand-black text-sm
+                                 focus:outline-none focus:ring-2 focus:ring-brand-yellow"
+                    />
+                    <button type="button" onClick={() => setShowConfirm((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-gray-mid hover:text-brand-black">
+                      {showConfirm ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-1">
+                  <button type="button" onClick={() => setPwStep('send')}
+                    className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium
+                               text-brand-gray-mid hover:border-gray-300 transition-colors">
+                    Back
+                  </button>
+                  <button type="submit" disabled={isSavingPassword || otp.length < 6}
+                    className="flex-1 px-4 py-2.5 rounded-lg bg-brand-yellow text-brand-black text-sm font-medium
+                               hover:bg-brand-yellow-dark transition-colors disabled:opacity-50">
+                    {isSavingPassword ? 'Saving…' : 'Update Password'}
                   </button>
                 </div>
-              </div>
 
-              {/* Confirm new password */}
-              <div>
-                <label className="block text-xs font-medium text-brand-gray-mid mb-1.5">Confirm New Password</label>
-                <div className="relative">
-                  <input
-                    type={showConfirm ? 'text' : 'password'}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                    className="w-full px-3 py-2.5 pr-10 rounded-lg border border-gray-200 text-brand-black text-sm
-                               focus:outline-none focus:ring-2 focus:ring-brand-yellow"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirm((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-brand-gray-mid hover:text-brand-black"
-                  >
-                    {showConfirm ? <EyeSlashIcon className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={handleClosePasswordModal}
-                  className="flex-1 px-4 py-2.5 rounded-lg border border-gray-200 text-sm font-medium
-                             text-brand-gray-mid hover:border-gray-300 transition-colors"
-                >
-                  Cancel
+                <button type="button" onClick={handleSendOtp} disabled={isSendingOtp}
+                  className="w-full text-center text-xs text-brand-gray-mid hover:text-brand-black transition-colors pt-1">
+                  {isSendingOtp ? 'Resending…' : 'Resend code'}
                 </button>
-                <button
-                  type="submit"
-                  disabled={isSavingPassword}
-                  className="flex-1 px-4 py-2.5 rounded-lg bg-brand-yellow text-brand-black text-sm font-medium
-                             hover:bg-brand-yellow-dark transition-colors disabled:opacity-50"
-                >
-                  {isSavingPassword ? 'Saving...' : 'Update Password'}
-                </button>
-              </div>
-            </form>
+              </form>
+            )}
           </div>
         </div>
       )}
