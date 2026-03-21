@@ -25,4 +25,6 @@ export const roadmapApi = {
     apiClient.post(`/roadmaps/${roadmapId}/nodes/add/`, payload),
   removeNode: (roadmapId, nodeId) =>
     apiClient.delete(`/roadmaps/${roadmapId}/nodes/${nodeId}/remove/`),
+  evaluateReflection: (roadmapId, nodeId, resourceId, text) =>
+    apiClient.post(`/roadmaps/${roadmapId}/nodes/${nodeId}/resources/${resourceId}/reflection/`, { reflection: text }),
 }
