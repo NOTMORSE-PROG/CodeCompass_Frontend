@@ -340,72 +340,6 @@ function ResourceModal({ resource, onClose, onMarkedRead }) {
   )
 }
 
-/** Written reflection gate — shown after 5 min watch, before the MCQ quiz unlocks */
-function ReflectionPrompt({ roadmapId, nodeId, resource, onReflectionPassed }) {
-  const [text, setText] = useState('')
-  const [status, setStatus] = useState('idle') // idle | submitting | failed
-  const [feedback, setFeedback] = useState('')
-
-  const wordCount = text.trim().split(/\s+/).filter(Boolean).length
-  const canSubmit = wordCount >= 20 && status !== 'submitting'
-
-  async function handleSubmit() {
-    setStatus('submitting')
-    setFeedback('')
-    try {
-      const { data } = await roadmapApi.evaluateReflection(roadmapId, nodeId, resource.id, text)
-      if (data.passed) {
-        onReflectionPassed()
-      } else {
-        setStatus('failed')
-        setFeedback(data.feedback || 'Try to mention specific concepts you learned from the video.')
-      }
-    } catch {
-      toast.error('Could not evaluate reflection. Try again.')
-      setStatus('idle')
-    }
-  }
-
-  return (
-    <div className="mt-2 rounded-xl border border-blue-200 bg-blue-50 overflow-hidden">
-      <div className="px-4 py-3 border-b border-blue-100">
-        <p className="text-sm font-bold text-brand-black">✏️ Reflection — What did you learn?</p>
-        <p className="text-xs text-brand-gray-mid">
-          Write in your own words before the quiz unlocks. Min 20 words.
-        </p>
-      </div>
-      <div className="px-4 py-3 space-y-2">
-        <textarea
-          value={text}
-          onChange={(e) => { setText(e.target.value); setStatus('idle'); setFeedback('') }}
-          placeholder="Describe what you learned from this video — mention specific concepts, techniques, or ideas..."
-          rows={4}
-          className="w-full text-sm border border-blue-200 rounded-lg px-3 py-2 resize-none
-                     focus:outline-none focus:ring-2 focus:ring-blue-300 bg-white"
-        />
-        <div className="flex items-center justify-between">
-          <span className={`text-xs ${wordCount >= 20 ? 'text-green-600 font-medium' : 'text-gray-400'}`}>
-            {wordCount} / 20 words min
-          </span>
-          <button
-            onClick={handleSubmit}
-            disabled={!canSubmit}
-            className="px-4 py-1.5 bg-brand-black text-brand-yellow font-bold text-xs rounded-lg
-                       hover:opacity-80 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {status === 'submitting' ? 'Evaluating...' : 'Submit Reflection'}
-          </button>
-        </div>
-        {feedback && (
-          <p className="text-xs text-red-600 font-medium bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-            {feedback}
-          </p>
-        )}
-      </div>
-    </div>
-  )
-}
-
 /** AI-generated quiz for a single YouTube video, shown below the embed */
 function VideoAssessment({ roadmapId, nodeId, resource, onAssessmentPassed }) {
   const [quizStatus, setQuizStatus] = useState('idle') // idle | loading | questions | submitting | passed | failed
@@ -746,7 +680,6 @@ function ActiveLessonContent({
 }) {
   const [modalOpen, setModalOpen] = useState(false)
   const [quizUnlocked, setQuizUnlocked] = useState(isDone)
-  const [reflectionPassed, setReflectionPassed] = useState(isDone)
   const [watchedSecs, setWatchedSecs] = useState(0)
   // Holds { results, questions } immediately after passing so breakdown stays visible
   const [justPassedData, setJustPassedData] = useState(null)
@@ -792,14 +725,7 @@ function ActiveLessonContent({
                 />
               )}
             </div>
-          ) : quizUnlocked && !reflectionPassed ? (
-            <ReflectionPrompt
-              roadmapId={roadmapId}
-              nodeId={nodeId}
-              resource={resource}
-              onReflectionPassed={() => setReflectionPassed(true)}
-            />
-          ) : quizUnlocked && reflectionPassed ? (
+          ) : quizUnlocked ? (
             <VideoAssessment
               roadmapId={roadmapId}
               nodeId={nodeId}
