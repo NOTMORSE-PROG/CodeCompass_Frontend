@@ -29,6 +29,7 @@ import UniversitiesPage from './pages/app/UniversitiesPage'
 import CertificationsPage from './pages/app/CertificationsPage'
 import AchievementsPage from './pages/app/AchievementsPage'
 import ProfilePage from './pages/app/ProfilePage'
+import QuizPage from './pages/app/QuizPage'
 
 // Route guards
 import ProtectedRoute from './components/layout/ProtectedRoute'
@@ -81,6 +82,8 @@ export default function App() {
             <Route path="/app/achievements" element={<AchievementsPage />} />
             <Route path="/app/profile" element={<ProfilePage />} />
           </Route>
+          {/* Quiz page — no sidebar, full-screen focus */}
+          <Route path="/app/quiz" element={<QuizPage />} />
         </Route>
 
         {/* Landing page */}

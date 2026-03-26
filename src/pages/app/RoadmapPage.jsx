@@ -2,6 +2,7 @@
  * Roadmap page — Udemy-like learning flow with curriculum list, active lesson, and localStorage persistence.
  */
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import confetti from 'canvas-confetti'
 import useRoadmapStore from '../../stores/roadmapStore'
@@ -69,16 +70,6 @@ function fireConfetti() {
     colors: ['#F5C518', '#1a1a1a', '#ffffff', '#fbbf24'],
     ticks: 200,
     gravity: 1.2,
-  })
-}
-
-function fireSmallConfetti() {
-  confetti({
-    particleCount: 40,
-    spread: 45,
-    origin: { x: 0.5, y: 0.55 },
-    scalar: 0.8,
-    ticks: 150,
   })
 }
 
@@ -340,233 +331,30 @@ function ResourceModal({ resource, onClose, onMarkedRead }) {
   )
 }
 
-/** AI-generated quiz for a single YouTube video, shown below the embed */
+/** Navigate to QuizPage for a YouTube video resource */
 function VideoAssessment({ roadmapId, nodeId, resource, onAssessmentPassed }) {
-  const [quizStatus, setQuizStatus] = useState('idle') // idle | loading | questions | submitting | passed | failed
-  const [sessionId, setSessionId] = useState(null)
-  const [questions, setQuestions] = useState([])
-  const [answers, setAnswers] = useState({})   // { '0': 'a', '1': 'c', ... }
-  const [result, setResult] = useState(null)
+  const navigate = useNavigate()
+  const location = useLocation()
 
-  async function handleStart() {
-    setQuizStatus('loading')
-    setAnswers({})
-    setResult(null)
-    try {
-      const { data } = await roadmapApi.startAssessment(roadmapId, nodeId, resource.id)
-      setSessionId(data.sessionId)
-      setQuestions(data.questions)
-      setQuizStatus('questions')
-    } catch {
-      toast.error('Could not generate quiz. Try again.')
-      setQuizStatus('idle')
+  // On return from QuizPage: detect passed result in location state
+  useEffect(() => {
+    const s = location.state
+    if (s?.quizPassed && s?.resourceId === resource.id) {
+      onAssessmentPassed(resource.id, { results: s.results, questions: s.questions })
+      // Clear the state so it doesn't re-fire on subsequent renders
+      navigate(location.pathname, { replace: true, state: {} })
     }
-  }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function handleSubmit() {
-    setQuizStatus('submitting')
-    try {
-      const { data } = await roadmapApi.submitAssessment(
-        roadmapId, nodeId, resource.id, sessionId, answers
-      )
-      setResult(data)
-      setQuizStatus(data.passed ? 'passed' : 'failed')
-      if (data.passed) {
-        fireSmallConfetti()
-        onAssessmentPassed(resource.id, { results: data.results, questions })
-      }
-    } catch {
-      toast.error('Submission failed. Try again.')
-      setQuizStatus('questions')
-    }
-  }
-
-  const allAnswered = questions.length > 0 && questions.every((_, i) => answers[String(i)])
-
-  if (quizStatus === 'idle') {
-    return (
-      <button
-        onClick={handleStart}
-        className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg
-                   border border-dashed border-brand-yellow bg-yellow-50 text-brand-black
-                   text-sm font-semibold hover:bg-yellow-100 transition-colors"
-      >
-        <span>📝</span> Quick Check — Take Quiz
-      </button>
-    )
-  }
-
-  if (quizStatus === 'loading') {
-    return (
-      <div className="mt-2 flex items-center gap-2 px-3 py-3 rounded-lg border border-gray-200 bg-gray-50 text-sm text-brand-gray-mid">
-        <div className="w-4 h-4 border-2 border-brand-yellow border-t-transparent rounded-full animate-spin flex-shrink-0" />
-        Generating quiz...
-      </div>
-    )
-  }
-
-  if (quizStatus === 'submitting') {
-    return (
-      <div className="mt-2 flex items-center gap-2 px-3 py-3 rounded-lg border border-gray-200 bg-gray-50 text-sm text-brand-gray-mid">
-        <div className="w-4 h-4 border-2 border-brand-yellow border-t-transparent rounded-full animate-spin flex-shrink-0" />
-        Checking your answers...
-      </div>
-    )
-  }
-
-  if (quizStatus === 'passed') {
-    return (
-      <div className="mt-2 rounded-xl border border-green-200 bg-green-50 overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-3">
-          <span className="text-green-600 text-lg">✓</span>
-          <div className="flex-1">
-            <p className="text-sm font-bold text-green-700">
-              Passed! {result.correctCount}/{result.totalQuestions} correct
-            </p>
-            <p className="text-xs text-green-600">{result.score}% — quiz complete for this video.</p>
-          </div>
-        </div>
-        <ResultDetails results={result.results} questions={questions} />
-      </div>
-    )
-  }
-
-  if (quizStatus === 'failed') {
-    return (
-      <div className="mt-2 rounded-xl border border-red-200 bg-red-50 overflow-hidden">
-        <div className="flex items-center gap-2 px-4 py-3">
-          <span className="text-red-500 text-lg">✗</span>
-          <div className="flex-1">
-            <p className="text-sm font-bold text-red-700">
-              {result.correctCount}/{result.totalQuestions} correct — need {result.passThreshold}% to pass.
-            </p>
-            <p className="text-xs text-red-500">Review the explanations below.</p>
-          </div>
-          <button
-            onClick={handleStart}
-            className="px-3 py-1.5 bg-red-600 text-white font-bold text-xs rounded-lg
-                       hover:bg-red-700 active:scale-95 transition-all flex-shrink-0"
-          >
-            New Quiz
-          </button>
-        </div>
-        <ResultDetails results={result.results} questions={questions} />
-      </div>
-    )
-  }
-
-  // quizStatus === 'questions'
   return (
-    <div className="mt-2 rounded-xl border border-brand-yellow bg-yellow-50 overflow-hidden">
-      <div className="px-4 py-3 border-b border-yellow-200">
-        <p className="text-sm font-bold text-brand-black">📝 Quick Check</p>
-        <p className="text-xs text-brand-gray-mid">Answer all {questions.length} questions to submit.</p>
-      </div>
-      <div className="px-4 py-3 space-y-4">
-        {questions.map((q, qi) => (
-          <div key={qi}>
-            <p className="text-sm font-semibold text-brand-black mb-2">
-              Q{qi + 1}. {q.question}
-            </p>
-            <div className="space-y-1.5">
-              {Object.entries(q.options).map(([key, text]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setAnswers((prev) => ({ ...prev, [String(qi)]: key }))}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-left text-sm font-medium border transition-colors ${
-                    answers[String(qi)] === key
-                      ? 'bg-brand-yellow text-brand-black border-brand-yellow'
-                      : 'bg-white border-gray-200 text-gray-700 hover:border-brand-yellow hover:bg-yellow-50'
-                  }`}
-                >
-                  <span className="font-bold uppercase text-xs flex-shrink-0">{key}.</span>
-                  {text}
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
-        <button
-          onClick={handleSubmit}
-          disabled={!allAnswered}
-          className="w-full py-2.5 bg-brand-black text-brand-yellow font-bold text-sm rounded-lg
-                     hover:opacity-80 active:scale-95 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          Submit Answers
-        </button>
-      </div>
-    </div>
-  )
-}
-
-/** Per-question result breakdown shown after submission */
-function ResultDetails({ results, questions }) {
-  const [open, setOpen] = useState(false)
-  return (
-    <div className="border-t border-gray-200">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-full px-4 py-2 text-xs font-semibold text-gray-500 hover:text-gray-700 text-left flex items-center gap-1"
-      >
-        {open ? '▲ Hide' : '▼ Show'} answer breakdown
-      </button>
-      {open && (
-        <div className="px-4 pb-4 space-y-4">
-          {results.map((r, i) => {
-            const q = questions[i]
-            const options = q?.options ?? {}
-            return (
-              <div key={i} className="rounded-xl border border-gray-200 overflow-hidden">
-                {/* Question header */}
-                <div className={`px-3 py-2 flex items-start gap-2 ${r.correct ? 'bg-green-50' : 'bg-red-50'}`}>
-                  <span className={`mt-0.5 flex-shrink-0 text-sm font-bold ${r.correct ? 'text-green-600' : 'text-red-500'}`}>
-                    {r.correct ? '✓' : '✗'}
-                  </span>
-                  <p className="text-xs font-semibold text-gray-800 leading-snug">
-                    Q{i + 1}. {q?.question}
-                  </p>
-                </div>
-                {/* Options */}
-                <div className="px-3 py-2 space-y-1.5 bg-white">
-                  {Object.entries(options).map(([key, text]) => {
-                    const isCorrect = key === r.correctAnswer
-                    const isYours = key === r.yourAnswer
-                    const isWrongPick = isYours && !isCorrect
-
-                    let cls = 'border-gray-100 bg-gray-50 text-gray-400'
-                    if (isCorrect) cls = 'border-green-400 bg-green-50 text-green-800'
-                    if (isWrongPick) cls = 'border-red-400 bg-red-50 text-red-700'
-
-                    return (
-                      <div
-                        key={key}
-                        className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs font-medium ${cls}`}
-                      >
-                        <span className="font-bold uppercase flex-shrink-0">{key}.</span>
-                        <span className="flex-1">{text}</span>
-                        {isCorrect && (
-                          <span className="flex-shrink-0 text-green-600 font-bold text-xs">✓ correct</span>
-                        )}
-                        {isWrongPick && (
-                          <span className="flex-shrink-0 text-red-500 font-bold text-xs">your answer</span>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-                {/* Explanation */}
-                {r.explanation && (
-                  <div className="px-3 py-2 border-t border-gray-100 bg-gray-50">
-                    <p className="text-xs text-gray-600 leading-relaxed">💡 {r.explanation}</p>
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      )}
-    </div>
+    <button
+      onClick={() => navigate('/app/quiz', { state: { roadmapId, nodeId, resource } })}
+      className="mt-2 w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg
+                 border border-dashed border-brand-yellow bg-yellow-50 text-brand-black
+                 text-sm font-semibold hover:bg-yellow-100 transition-colors"
+    >
+      <span>📝</span> Take Quiz — 10 Questions
+    </button>
   )
 }
 
@@ -679,13 +467,16 @@ function ActiveLessonContent({
   onMarkLessonDone,
 }) {
   const [modalOpen, setModalOpen] = useState(false)
-  const [quizUnlocked, setQuizUnlocked] = useState(isDone)
+  const storageKey = `quiz_unlocked_${resource.id}`
+  const [quizUnlocked, setQuizUnlocked] = useState(
+    isDone || localStorage.getItem(storageKey) === 'true'
+  )
   const [watchedSecs, setWatchedSecs] = useState(0)
-  // Holds { results, questions } immediately after passing so breakdown stays visible
-  const [justPassedData, setJustPassedData] = useState(null)
-
-  function handleAssessmentPassed(resourceId, resultData) {
-    if (resultData) setJustPassedData(resultData)
+  function handleUnlock() {
+    localStorage.setItem(storageKey, 'true')
+    setQuizUnlocked(true)
+  }
+  function handleAssessmentPassed(resourceId) {
     onMarkLessonDone(resourceId)
   }
 
@@ -701,9 +492,9 @@ function ActiveLessonContent({
         <YouTubePlayer
           videoId={videoId}
           resourceId={resource.id}
-          onWatchedEnough={() => setQuizUnlocked(true)}
+          onWatchedEnough={handleUnlock}
           onTimeUpdate={(s) => setWatchedSecs(s)}
-          onEnded={() => setQuizUnlocked(true)}
+          onEnded={handleUnlock}
         />
         <div className="px-3 py-2 bg-gray-50">
           <p className="text-sm font-semibold text-brand-black leading-snug">{resource.title}</p>
@@ -718,12 +509,6 @@ function ActiveLessonContent({
                 <span className="text-green-600 font-bold">✓</span>
                 <span className="text-sm text-green-700 font-semibold">Quiz passed — lesson complete!</span>
               </div>
-              {justPassedData && (
-                <ResultDetails
-                  results={justPassedData.results}
-                  questions={justPassedData.questions}
-                />
-              )}
             </div>
           ) : quizUnlocked ? (
             <VideoAssessment
@@ -909,12 +694,6 @@ function ActiveLessonContent({
             <span className="text-green-600 font-bold">✓</span>
             <span className="text-sm text-green-700 font-semibold">Quiz passed — lesson complete!</span>
           </div>
-          {justPassedData && (
-            <ResultDetails
-              results={justPassedData.results}
-              questions={justPassedData.questions}
-            />
-          )}
         </div>
       ) : (
         <>
