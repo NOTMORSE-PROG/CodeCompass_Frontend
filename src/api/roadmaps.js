@@ -25,4 +25,6 @@ export const roadmapApi = {
     apiClient.post(`/roadmaps/${roadmapId}/nodes/add/`, payload),
   removeNode: (roadmapId, nodeId) =>
     apiClient.delete(`/roadmaps/${roadmapId}/nodes/${nodeId}/remove/`),
+  unlockVideoWatch: (roadmapId, nodeId, resourceId) =>
+    apiClient.post(`/roadmaps/${roadmapId}/nodes/${nodeId}/resources/${resourceId}/unlock/`),
 }

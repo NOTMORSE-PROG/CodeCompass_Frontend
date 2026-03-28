@@ -467,14 +467,11 @@ function ActiveLessonContent({
   onMarkLessonDone,
 }) {
   const [modalOpen, setModalOpen] = useState(false)
-  const storageKey = `quiz_unlocked_${resource.id}`
-  const [quizUnlocked, setQuizUnlocked] = useState(
-    isDone || localStorage.getItem(storageKey) === 'true'
-  )
+  const [quizUnlocked, setQuizUnlocked] = useState(isDone || !!resource.watchUnlocked)
   const [watchedSecs, setWatchedSecs] = useState(0)
   function handleUnlock() {
-    localStorage.setItem(storageKey, 'true')
     setQuizUnlocked(true)
+    roadmapApi.unlockVideoWatch(roadmapId, nodeId, resource.id).catch(() => {})
   }
   function handleAssessmentPassed(resourceId) {
     onMarkLessonDone(resourceId)
