@@ -142,6 +142,14 @@ const useChatStore = create((set, get) => ({
     }))
   },
 
+  dismissRoadmapUpskill: (messageId) => {
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === messageId ? { ...m, roadmapUpskill: null } : m
+      ),
+    }))
+  },
+
   pushLocalMessage: (text) => {
     set((state) => ({
       messages: [
@@ -175,7 +183,7 @@ const useChatStore = create((set, get) => ({
           isStreaming: true,
         }))
       },
-      onEnd: ({ message_id, clean_content, edit_proposals, resources, roadmap_switch }) => {
+      onEnd: ({ message_id, clean_content, edit_proposals, resources, roadmap_switch, roadmap_upskill }) => {
         set((state) => {
           const content = clean_content ?? state.streamingContent
           const assistantMsg = {
@@ -186,6 +194,7 @@ const useChatStore = create((set, get) => ({
             editProposals: (edit_proposals && edit_proposals.length > 0) ? edit_proposals : null,
             resources: (resources && resources.length > 0) ? resources : null,
             roadmapSwitch: roadmap_switch || null,
+            roadmapUpskill: roadmap_upskill || null,
           }
           return {
             messages: [...state.messages, assistantMsg],

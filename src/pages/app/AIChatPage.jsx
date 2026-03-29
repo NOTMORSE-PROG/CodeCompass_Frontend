@@ -523,6 +523,96 @@ function RoadmapSwitchConfirmCard({ proposal, messageId, currentRoadmap, onSwitc
 }
 
 // ---------------------------------------------------------------------------
+// Roadmap upskill card — amber/yellow, positive tone (not destructive)
+// ---------------------------------------------------------------------------
+function RoadmapUpskillCard({ proposal, messageId, currentRoadmap, onUpskill, onDismiss }) {
+  const [upskilling, setUpskilling] = useState(false)
+  const [upskilled, setUpskilled] = useState(false)
+
+  const handleUpskill = async () => {
+    setUpskilling(true)
+    const ok = await onUpskill(proposal)
+    if (ok) {
+      setUpskilled(true)
+      setUpskilling(false)
+    } else {
+      setUpskilling(false)
+    }
+  }
+
+  if (upskilled) {
+    return (
+      <div className="mt-2 rounded-lg border border-green-300/60 bg-green-50 p-3 text-sm">
+        <p className="font-semibold text-green-800 mb-2 text-xs uppercase tracking-wide">
+          ✅ Advanced Roadmap Ready
+        </p>
+        <div className="mb-3 space-y-1 text-xs text-gray-700">
+          <p>
+            Your new advanced roadmap is ready! Head over to the Roadmap page to get started.
+          </p>
+          <p className="text-amber-700 font-medium mt-1">
+            You&apos;ve used your one upskill for today. You can upskill again tomorrow.
+          </p>
+        </div>
+        <button
+          onClick={() => onDismiss(messageId)}
+          className="px-3 py-1 rounded border border-gray-300 text-xs text-gray-600
+                     hover:bg-gray-100 transition-colors"
+        >
+          Got it
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-2 rounded-lg border border-amber-300/60 bg-amber-50 p-3 text-sm">
+      <p className="font-semibold text-amber-800 mb-2 text-xs uppercase tracking-wide">
+        ⬆️ Level Up Your Roadmap
+      </p>
+
+      <div className="mb-3 rounded border border-amber-300 bg-white px-2.5 py-2 text-xs text-amber-700 space-y-1">
+        <p className="font-semibold">Your current roadmap will be archived</p>
+        <p>
+          <span className="font-medium">{currentRoadmap?.title || 'Current roadmap'}</span>
+        </p>
+        <p className="text-amber-600">
+          All progress, completed nodes, and XP earned will be preserved in your history.
+          A new, more advanced roadmap will be generated for the same career path.
+        </p>
+        <p className="text-amber-500 font-medium">
+          You can only upskill once per day.
+        </p>
+      </div>
+
+      {proposal.summary && (
+        <p className="mb-3 text-xs text-gray-700">
+          <span className="font-medium">Plan:</span> {proposal.summary}
+        </p>
+      )}
+
+      <div className="flex gap-2">
+        <button
+          onClick={handleUpskill}
+          disabled={upskilling}
+          className="px-3 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white text-xs
+                     font-medium disabled:opacity-50 transition-colors"
+        >
+          {upskilling ? 'Generating…' : '⬆️ Yes, Level Up'}
+        </button>
+        <button
+          onClick={() => onDismiss(messageId)}
+          className="px-3 py-1 rounded border border-gray-300 text-xs text-gray-600
+                     hover:bg-gray-100 transition-colors"
+        >
+          Not yet
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Tab switch skeleton — shown during the 350ms mode transition
 // ---------------------------------------------------------------------------
 function TabSwitchSkeleton() {
@@ -569,12 +659,12 @@ function ResourceStrip({ resources }) {
 // ---------------------------------------------------------------------------
 export default function AIChatPage() {
   const { user } = useAuthStore()
-  const { roadmaps, fetchRoadmaps, applyEditProposals, switchRoadmap } = useRoadmapStore()
+  const { roadmaps, fetchRoadmaps, applyEditProposals, switchRoadmap, upskillRoadmap } = useRoadmapStore()
   const {
     sessions, sessionsLoading, sessionLoading, messages, streamingContent, isStreaming, wsConnected,
     fetchSessions, selectSession, sendMessage,
     disconnectWebSocket, deleteSession, renameSession, clearCurrentSession,
-    dismissEditProposals, dismissRoadmapSwitch, chatLanguage, setChatLanguage,
+    dismissEditProposals, dismissRoadmapSwitch, dismissRoadmapUpskill, chatLanguage, setChatLanguage,
   } = useChatStore()
 
   const [input, setInput] = useState('')
@@ -865,6 +955,17 @@ export default function AIChatPage() {
                     currentRoadmap={primaryRoadmap}
                     onSwitch={switchRoadmap}
                     onDismiss={dismissRoadmapSwitch}
+                  />
+                </div>
+              )}
+              {msg.role === 'assistant' && msg.roadmapUpskill && (
+                <div className="ml-10 max-w-[75%]">
+                  <RoadmapUpskillCard
+                    proposal={msg.roadmapUpskill}
+                    messageId={msg.id}
+                    currentRoadmap={primaryRoadmap}
+                    onUpskill={upskillRoadmap}
+                    onDismiss={dismissRoadmapUpskill}
                   />
                 </div>
               )}

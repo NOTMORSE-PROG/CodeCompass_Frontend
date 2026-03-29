@@ -28,4 +28,5 @@ export const roadmapApi = {
   unlockVideoWatch: (roadmapId, nodeId, resourceId) =>
     apiClient.post(`/roadmaps/${roadmapId}/nodes/${nodeId}/resources/${resourceId}/unlock/`),
   switchRoadmap: (data) => apiClient.post('/roadmaps/switch/', data),
+  upskillRoadmap: (data) => apiClient.post('/roadmaps/upskill/', data),
 }

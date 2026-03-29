@@ -105,6 +105,25 @@ const useRoadmapStore = create((set, get) => ({
     }
   },
 
+  upskillRoadmap: async (upskillProposal) => {
+    set({ isGenerating: true })
+    try {
+      const { data } = await roadmapApi.upskillRoadmap({ roadmap_id: upskillProposal.roadmap_id })
+      set((state) => ({
+        roadmaps: [data, ...state.roadmaps.filter(r => r.id !== upskillProposal.roadmap_id)],
+        currentRoadmap: data,
+        isGenerating: false,
+      }))
+      toast.success('Your advanced roadmap is ready!')
+      return true
+    } catch (error) {
+      const msg = error.response?.data?.detail || 'Roadmap upskill failed. Please try again.'
+      toast.error(msg)
+      set({ isGenerating: false })
+      return false
+    }
+  },
+
   switchRoadmap: async (switchProposal) => {
     set({ isGenerating: true })
     try {
