@@ -7,20 +7,6 @@ import { GoogleLogin } from '@react-oauth/google'
 import { PencilIcon, CheckIcon, XMarkIcon, EyeIcon, EyeSlashIcon } from '@heroicons/react/24/solid'
 import toast from 'react-hot-toast'
 
-const SKILL_OPTIONS = [
-  'Python', 'JavaScript', 'React', 'Django', 'Node.js', 'Java', 'C++',
-  'SQL', 'HTML/CSS', 'Git', 'Machine Learning', 'Data Analysis',
-  'Networking', 'Linux', 'Cloud (AWS/GCP)', 'Mobile Development',
-]
-
-const CAREER_OPTIONS = [
-  'Full Stack Developer', 'Frontend Developer', 'Backend Developer',
-  'Data Scientist / Analyst', 'Machine Learning Engineer', 'DevOps / Cloud Engineer',
-  'Mobile Developer', 'Cybersecurity Analyst', 'UI/UX Designer',
-  'IT Project Manager', 'Network Engineer', 'Database Administrator',
-]
-
-const PROGRAMS = ['BSCS', 'BSIT', 'BSIS', 'BSCE', 'Undecided']
 
 export default function ProfilePage() {
   const navigate = useNavigate()
@@ -30,10 +16,6 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = useState(true)
 
   // Student fields
-  const [yearLevel, setYearLevel] = useState('')
-  const [program, setProgram] = useState('')
-  const [targetCareer, setTargetCareer] = useState('')
-  const [selectedSkills, setSelectedSkills] = useState([])
   const [bio, setBio] = useState('')
   const [linkedinUrl, setLinkedinUrl] = useState('')
   const [githubUrl, setGithubUrl] = useState('')
@@ -68,10 +50,6 @@ export default function ProfilePage() {
       try {
         if (isStudent) {
           const { data } = await profileApi.getStudentProfile()
-          setYearLevel(data.yearLevel || '')
-          setProgram(data.program || '')
-          setTargetCareer(data.targetCareer || '')
-          setSelectedSkills(data.currentSkills || [])
           setBio(data.bio || '')
           setLinkedinUrl(data.linkedinUrl || '')
           setGithubUrl(data.githubUrl || '')
@@ -90,20 +68,11 @@ export default function ProfilePage() {
     load()
   }, [isStudent, isMentor])
 
-  const toggleSkill = (skill) =>
-    setSelectedSkills((prev) =>
-      prev.includes(skill) ? prev.filter((s) => s !== skill) : [...prev, skill]
-    )
-
   const handleSave = async () => {
     setIsSaving(true)
     try {
       if (isStudent) {
         await profileApi.updateStudentProfile({
-          year_level: yearLevel,
-          program,
-          target_career: targetCareer,
-          current_skills: selectedSkills,
           bio,
           linkedin_url: linkedinUrl,
           github_url: githubUrl,
@@ -242,125 +211,51 @@ export default function ProfilePage() {
 
       {/* Student profile */}
       {isStudent && (
-        <>
-          <div className="card mb-4">
-            <h3 className="font-bold text-brand-black mb-4">Academic Info</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-medium text-brand-gray-mid mb-1.5">Year Level</label>
-                <select
-                  disabled={!editing}
-                  value={yearLevel}
-                  onChange={(e) => setYearLevel(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-brand-black text-sm
-                             focus:outline-none focus:ring-2 focus:ring-brand-yellow bg-white
-                             disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <option value="">Select year level</option>
-                  {user?.role === 'incoming_student' && <option value="incoming">Incoming / K-12 Graduate</option>}
-                  {user?.role === 'undergraduate' && ['1st Year', '2nd Year', '3rd Year', '4th Year'].map((y) => (
-                    <option key={y} value={y}>{y}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-brand-gray-mid mb-1.5">Program</label>
-                <select
-                  disabled={!editing}
-                  value={program}
-                  onChange={(e) => setProgram(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-brand-black text-sm
-                             focus:outline-none focus:ring-2 focus:ring-brand-yellow bg-white
-                             disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <option value="">Select program</option>
-                  {PROGRAMS.map((p) => <option key={p}>{p}</option>)}
-                </select>
-              </div>
-            </div>
+        <div className="card mb-4">
+          <h3 className="font-bold text-brand-black mb-4">About</h3>
+          <div>
+            <label className="block text-xs font-medium text-brand-gray-mid mb-1.5">Bio</label>
+            <textarea
+              disabled={!editing}
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              placeholder="Tell us a bit about yourself..."
+              rows={3}
+              className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-brand-black text-sm
+                         focus:outline-none focus:ring-2 focus:ring-brand-yellow resize-none
+                         disabled:opacity-60 disabled:cursor-not-allowed"
+            />
+          </div>
 
-            <div className="mt-4">
-              <label className="block text-xs font-medium text-brand-gray-mid mb-1.5">Target Career Path</label>
-              <select
+          <div className="grid grid-cols-2 gap-4 mt-4">
+            <div>
+              <label className="block text-xs font-medium text-brand-gray-mid mb-1.5">LinkedIn URL</label>
+              <input
+                type="url"
                 disabled={!editing}
-                value={targetCareer}
-                onChange={(e) => setTargetCareer(e.target.value)}
+                value={linkedinUrl}
+                onChange={(e) => setLinkedinUrl(e.target.value)}
+                placeholder="https://linkedin.com/in/..."
                 className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-brand-black text-sm
-                           focus:outline-none focus:ring-2 focus:ring-brand-yellow bg-white
-                           disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                <option value="">Select target career</option>
-                {CAREER_OPTIONS.map((c) => <option key={c}>{c}</option>)}
-              </select>
-            </div>
-
-            <div className="mt-4">
-              <label className="block text-xs font-medium text-brand-gray-mid mb-1.5">Bio</label>
-              <textarea
-                disabled={!editing}
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                placeholder="Tell us a bit about yourself..."
-                rows={3}
-                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-brand-black text-sm
-                           focus:outline-none focus:ring-2 focus:ring-brand-yellow resize-none
+                           focus:outline-none focus:ring-2 focus:ring-brand-yellow
                            disabled:opacity-60 disabled:cursor-not-allowed"
               />
             </div>
-
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <div>
-                <label className="block text-xs font-medium text-brand-gray-mid mb-1.5">LinkedIn URL</label>
-                <input
-                  type="url"
-                  disabled={!editing}
-                  value={linkedinUrl}
-                  onChange={(e) => setLinkedinUrl(e.target.value)}
-                  placeholder="https://linkedin.com/in/..."
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-brand-black text-sm
-                             focus:outline-none focus:ring-2 focus:ring-brand-yellow
-                             disabled:opacity-60 disabled:cursor-not-allowed"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-brand-gray-mid mb-1.5">GitHub URL</label>
-                <input
-                  type="url"
-                  disabled={!editing}
-                  value={githubUrl}
-                  onChange={(e) => setGithubUrl(e.target.value)}
-                  placeholder="https://github.com/..."
-                  className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-brand-black text-sm
-                             focus:outline-none focus:ring-2 focus:ring-brand-yellow
-                             disabled:opacity-60 disabled:cursor-not-allowed"
-                />
-              </div>
+            <div>
+              <label className="block text-xs font-medium text-brand-gray-mid mb-1.5">GitHub URL</label>
+              <input
+                type="url"
+                disabled={!editing}
+                value={githubUrl}
+                onChange={(e) => setGithubUrl(e.target.value)}
+                placeholder="https://github.com/..."
+                className="w-full px-3 py-2.5 rounded-lg border border-gray-200 text-brand-black text-sm
+                           focus:outline-none focus:ring-2 focus:ring-brand-yellow
+                           disabled:opacity-60 disabled:cursor-not-allowed"
+              />
             </div>
           </div>
-
-          <div className="card mb-4">
-            <h3 className="font-bold text-brand-black mb-1">Current Skills</h3>
-            <p className="text-brand-gray-mid text-xs mb-4">
-              {editing ? 'Click the skills you already know.' : 'Edit your profile to update your skills.'}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {SKILL_OPTIONS.map((skill) => (
-                <button
-                  key={skill}
-                  disabled={!editing}
-                  onClick={() => toggleSkill(skill)}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all border disabled:cursor-not-allowed ${
-                    selectedSkills.includes(skill)
-                      ? 'bg-brand-yellow border-brand-yellow text-brand-black'
-                      : 'bg-white border-gray-200 text-brand-gray-mid'
-                  }`}
-                >
-                  {skill}
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
+        </div>
       )}
 
       {/* Mentor profile */}

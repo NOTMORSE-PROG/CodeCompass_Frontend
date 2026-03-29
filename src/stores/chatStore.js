@@ -8,6 +8,7 @@ import { chatApi, createChatWebSocket } from '../api/chat'
 const useChatStore = create((set, get) => ({
   sessions: [],
   sessionsLoading: false,
+  sessionLoading: false,
   currentSession: null,
   messages: [],
   streamingContent: '',  // Buffer for incoming AI stream chunks
@@ -64,7 +65,7 @@ const useChatStore = create((set, get) => ({
 
   clearCurrentSession: () => {
     get().disconnectWebSocket()
-    set({ currentSession: null, messages: [], streamingContent: '', isStreaming: false, suggestions: [], wsConnected: false })
+    set({ currentSession: null, messages: [], streamingContent: '', isStreaming: false, suggestions: [], wsConnected: false, sessionLoading: false })
   },
 
   createSession: async (contextType = 'general') => {
@@ -78,12 +79,15 @@ const useChatStore = create((set, get) => ({
   },
 
   selectSession: async (sessionId) => {
+    set({ sessionLoading: true })
     try {
       const { data } = await chatApi.getSession(sessionId)
       set({ currentSession: data, messages: data.messages || [] })
       get()._connectWebSocket(sessionId)
     } catch {
       toast.error('Could not load that chat.')
+    } finally {
+      set({ sessionLoading: false })
     }
   },
 

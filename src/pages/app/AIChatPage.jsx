@@ -571,7 +571,7 @@ export default function AIChatPage() {
   const { user } = useAuthStore()
   const { roadmaps, fetchRoadmaps, applyEditProposals, switchRoadmap } = useRoadmapStore()
   const {
-    sessions, sessionsLoading, messages, streamingContent, isStreaming, wsConnected,
+    sessions, sessionsLoading, sessionLoading, messages, streamingContent, isStreaming, wsConnected,
     fetchSessions, selectSession, sendMessage,
     disconnectWebSocket, deleteSession, renameSession, clearCurrentSession,
     dismissEditProposals, dismissRoadmapSwitch, chatLanguage, setChatLanguage,
@@ -656,7 +656,8 @@ export default function AIChatPage() {
   }, [renameSession])
 
   const handleSelectSession = (session) => {
-    if (isStreaming) return  // Block switching while AI is mid-response to prevent stream mixing
+    if (isStreaming || sessionLoading) return
+    if (session.sessionId === currentSessionId) return
     const mode = ALL_MODES.find((m) => m.contextType === session.contextType)
     if (mode && visibleModes.find((m) => m.key === mode.key)) setActiveMode(mode.key)
     selectSession(session.sessionId)
@@ -791,8 +792,8 @@ export default function AIChatPage() {
           </div>
         )}
 
-        {/* Messages — replaced by skeleton during tab switch */}
-        {isSwitchingMode ? <TabSwitchSkeleton /> : <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Messages — replaced by skeleton during tab switch or session load */}
+        {isSwitchingMode || sessionLoading ? <TabSwitchSkeleton /> : <div className="flex-1 overflow-y-auto p-4 space-y-4">
 
           {/* Welcome state */}
           {showWelcome && (
