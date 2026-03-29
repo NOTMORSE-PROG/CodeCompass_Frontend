@@ -105,6 +105,29 @@ const useRoadmapStore = create((set, get) => ({
     }
   },
 
+  switchRoadmap: async (switchProposal) => {
+    set({ isGenerating: true })
+    try {
+      const { data } = await roadmapApi.switchRoadmap({
+        roadmap_id: switchProposal.roadmap_id,
+        new_path: switchProposal.new_path,
+        career_goal: switchProposal.career_goal,
+      })
+      set((state) => ({
+        roadmaps: [data, ...state.roadmaps.filter(r => r.id !== switchProposal.roadmap_id)],
+        currentRoadmap: data,
+        isGenerating: false,
+      }))
+      toast.success('Your new roadmap is ready!')
+      return true
+    } catch (error) {
+      const msg = error.response?.data?.detail || 'Roadmap switch failed. Please try again.'
+      toast.error(msg)
+      set({ isGenerating: false })
+      return false
+    }
+  },
+
   updateNodeStatus: async (roadmapId, nodeId, newStatus) => {
     try {
       const { data } = await roadmapApi.updateNodeStatus(roadmapId, nodeId, newStatus)

@@ -12,6 +12,7 @@ import {
   EllipsisHorizontalIcon,
 } from '@heroicons/react/24/solid'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import python from 'react-syntax-highlighter/dist/esm/languages/prism/python'
@@ -169,6 +170,11 @@ function groupSessions(sessions) {
 function MarkdownMessage({ content }) {
   return (
     <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      urlTransform={(url) => {
+        if (/^javascript:/i.test(url) || /^data:/i.test(url)) return ''
+        return url
+      }}
       components={{
         code({ inline, className, children, ...props }) {
           const lang = /language-(\w+)/.exec(className || '')?.[1]
@@ -398,22 +404,184 @@ function RoadmapEditProposalCard({ proposals, messageId, onApply, onDismiss }) {
 }
 
 // ---------------------------------------------------------------------------
+// Resource card strip — shown below assistant messages when AI suggests resources
+// ---------------------------------------------------------------------------
+function ResourceCard({ title, url }) {
+  let hostname = url
+  try { hostname = new URL(url).hostname.replace('www.', '') } catch { hostname = url }
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-gray-200
+                 bg-white hover:border-amber-400 hover:bg-amber-50 transition-colors min-w-0"
+    >
+      <span className="text-sm flex-shrink-0">🔗</span>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-brand-black truncate">{title}</p>
+        <p className="text-[10px] text-amber-600 truncate">{hostname}</p>
+      </div>
+    </a>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Roadmap switch confirmation card — shown below assistant bubbles when AI proposes a path switch
+// ---------------------------------------------------------------------------
+function RoadmapSwitchConfirmCard({ proposal, messageId, currentRoadmap, onSwitch, onDismiss }) {
+  const [switching, setSwitching] = useState(false)
+  const [switched, setSwitched] = useState(false)
+
+  const handleSwitch = async () => {
+    setSwitching(true)
+    const ok = await onSwitch(proposal)
+    if (ok) {
+      setSwitched(true)
+      setSwitching(false)
+    } else {
+      setSwitching(false)
+    }
+  }
+
+  const completionPct = currentRoadmap?.completionPercentage
+    ? `${Math.round(currentRoadmap.completionPercentage)}% complete`
+    : null
+
+  // Success state — shown after switch completes
+  if (switched) {
+    return (
+      <div className="mt-2 rounded-lg border border-green-300/60 bg-green-50 p-3 text-sm">
+        <p className="font-semibold text-green-800 mb-2 text-xs uppercase tracking-wide">
+          ✅ Roadmap Switched
+        </p>
+        <div className="mb-3 space-y-1 text-xs text-gray-700">
+          <p>
+            Your new <span className="font-semibold">{proposal.new_path}</span> roadmap is ready!
+            Head over to the Roadmap page to get started.
+          </p>
+          <p className="text-amber-700 font-medium mt-1">
+            You&apos;ve used your one switch for today. You can switch again tomorrow.
+          </p>
+        </div>
+        <button
+          onClick={() => onDismiss(messageId)}
+          className="px-3 py-1 rounded border border-gray-300 text-xs text-gray-600
+                     hover:bg-gray-100 transition-colors"
+        >
+          Got it
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-2 rounded-lg border border-red-300/60 bg-red-50 p-3 text-sm">
+      <p className="font-semibold text-red-800 mb-2 text-xs uppercase tracking-wide">
+        Switch Career Path
+      </p>
+
+      <div className="mb-3 rounded border border-red-300 bg-white px-2.5 py-2 text-xs text-red-700 space-y-1">
+        <p className="font-semibold">⚠️ Your current roadmap will be archived</p>
+        <p>
+          <span className="font-medium">{currentRoadmap?.title || 'Current roadmap'}</span>
+          {completionPct && <span className="text-red-500"> — {completionPct}</span>}
+        </p>
+        <p className="text-red-600">
+          All progress, completed nodes, and XP earned will be preserved in your history,
+          but you won&apos;t be able to continue from where you left off.
+        </p>
+        <p className="text-red-500 font-medium">
+          You can only switch your learning path once per day.
+        </p>
+      </div>
+
+      <div className="mb-3 space-y-0.5 text-xs text-gray-700">
+        <p><span className="font-medium">New path:</span> {proposal.new_path}</p>
+        <p><span className="font-medium">Career goal:</span> {proposal.career_goal}</p>
+      </div>
+
+      <div className="flex gap-2">
+        <button
+          onClick={handleSwitch}
+          disabled={switching}
+          className="px-3 py-1 rounded bg-red-500 hover:bg-red-600 text-white text-xs
+                     font-medium disabled:opacity-50 transition-colors"
+        >
+          {switching ? 'Generating…' : 'Yes, Switch My Roadmap'}
+        </button>
+        <button
+          onClick={() => onDismiss(messageId)}
+          className="px-3 py-1 rounded border border-gray-300 text-xs text-gray-600
+                     hover:bg-gray-100 transition-colors"
+        >
+          Keep Current Roadmap
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Tab switch skeleton — shown during the 350ms mode transition
+// ---------------------------------------------------------------------------
+function TabSwitchSkeleton() {
+  return (
+    <div className="flex-1 overflow-y-auto p-4 space-y-6 animate-pulse">
+      <div className="flex items-start gap-2">
+        <div className="w-8 h-8 rounded-full bg-gray-200 flex-shrink-0 mt-1" />
+        <div className="max-w-[60%] space-y-2 pt-1">
+          <div className="h-3 bg-gray-200 rounded-full w-52" />
+          <div className="h-3 bg-gray-200 rounded-full w-40" />
+          <div className="h-3 bg-gray-200 rounded-full w-32" />
+        </div>
+      </div>
+      <div className="flex items-end justify-end gap-2">
+        <div className="max-w-[50%] flex flex-col items-end space-y-2 pb-1">
+          <div className="h-3 bg-gray-200 rounded-full w-36" />
+          <div className="h-3 bg-gray-200 rounded-full w-24" />
+        </div>
+        <div className="w-8 h-8 rounded-full bg-gray-200 flex-shrink-0 mb-1" />
+      </div>
+      <div className="flex items-start gap-2">
+        <div className="w-8 h-8 rounded-full bg-gray-200 flex-shrink-0 mt-1" />
+        <div className="max-w-[65%] space-y-2 pt-1">
+          <div className="h-3 bg-gray-200 rounded-full w-60" />
+          <div className="h-3 bg-gray-200 rounded-full w-48" />
+          <div className="h-3 bg-gray-200 rounded-full w-28" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ResourceStrip({ resources }) {
+  if (!resources?.length) return null
+  return (
+    <div className="mt-2 grid grid-cols-2 gap-1.5">
+      {resources.map((r) => <ResourceCard key={r.url} title={r.title} url={r.url} />)}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 export default function AIChatPage() {
   const { user } = useAuthStore()
-  const { roadmaps, fetchRoadmaps, applyEditProposals } = useRoadmapStore()
+  const { roadmaps, fetchRoadmaps, applyEditProposals, switchRoadmap } = useRoadmapStore()
   const {
     sessions, sessionsLoading, messages, streamingContent, isStreaming, wsConnected,
     fetchSessions, selectSession, sendMessage,
     disconnectWebSocket, deleteSession, renameSession, clearCurrentSession,
-    dismissEditProposals, chatLanguage, setChatLanguage,
+    dismissEditProposals, dismissRoadmapSwitch, chatLanguage, setChatLanguage,
   } = useChatStore()
 
   const [input, setInput] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [activeMode, setActiveMode] = useState('general')
   const [deletingId, setDeletingId] = useState(null)
+  const [isSwitchingMode, setIsSwitchingMode] = useState(false)
   const [onboardingSummary, setOnboardingSummary] = useState(null)
   const messagesEndRef = useRef(null)
   const initialized = useRef(false)
@@ -465,9 +633,11 @@ export default function AIChatPage() {
   }
 
   const handleModeSwitch = (modeKey) => {
-    if (modeKey === activeMode) return
-    setActiveMode(modeKey)
+    if (modeKey === activeMode || isSwitchingMode) return
+    setIsSwitchingMode(true)
     clearCurrentSession()
+    setActiveMode(modeKey)
+    setTimeout(() => setIsSwitchingMode(false), 350)
   }
 
   const handleNewChat = () => {
@@ -592,13 +762,16 @@ export default function AIChatPage() {
             <button
               key={mode.key}
               onClick={() => handleModeSwitch(mode.key)}
+              disabled={isSwitchingMode}
               className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium whitespace-nowrap
-                          transition-colors border-b-2 -mb-px
+                          transition-colors border-b-2 -mb-px disabled:pointer-events-none
                           ${activeMode === mode.key
                             ? 'border-brand-yellow text-brand-black'
                             : 'border-transparent text-brand-gray-mid hover:text-brand-black hover:bg-gray-50'}`}
             >
-              <span>{mode.icon}</span>
+              <span className={activeMode === mode.key && isSwitchingMode ? 'animate-pulse' : ''}>
+                {mode.icon}
+              </span>
               {mode.label}
             </button>
           ))}
@@ -618,8 +791,8 @@ export default function AIChatPage() {
           </div>
         )}
 
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Messages — replaced by skeleton during tab switch */}
+        {isSwitchingMode ? <TabSwitchSkeleton /> : <div className="flex-1 overflow-y-auto p-4 space-y-4">
 
           {/* Welcome state */}
           {showWelcome && (
@@ -678,6 +851,22 @@ export default function AIChatPage() {
                   />
                 </div>
               )}
+              {msg.role === 'assistant' && msg.resources?.length > 0 && (
+                <div className="ml-10 max-w-[75%]">
+                  <ResourceStrip resources={msg.resources} />
+                </div>
+              )}
+              {msg.role === 'assistant' && msg.roadmapSwitch && (
+                <div className="ml-10 max-w-[75%]">
+                  <RoadmapSwitchConfirmCard
+                    proposal={msg.roadmapSwitch}
+                    messageId={msg.id}
+                    currentRoadmap={primaryRoadmap}
+                    onSwitch={switchRoadmap}
+                    onDismiss={dismissRoadmapSwitch}
+                  />
+                </div>
+              )}
             </div>
           ))}
 
@@ -705,7 +894,7 @@ export default function AIChatPage() {
           )}
 
           <div ref={messagesEndRef} />
-        </div>
+        </div>}
 
         {/* Input */}
         <div className="border-t border-gray-100 flex flex-col">
