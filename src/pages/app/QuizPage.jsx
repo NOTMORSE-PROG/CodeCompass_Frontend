@@ -351,10 +351,12 @@ function QuizResults({ quizStatus, result, questions, onBackPassed, onBackFailed
                     )
                   })}
                 </div>
-                {/* Explanation */}
-                {r.explanation && (
+                {/* Explanation — show distractor for wrong answers, general explanation for correct */}
+                {(r.correct ? r.explanation : (r.distractor || r.explanation)) && (
                   <div className="px-4 py-3 border-t border-gray-100 bg-gray-50">
-                    <p className="text-xs text-gray-600 leading-relaxed">💡 {r.explanation}</p>
+                    <p className="text-xs text-gray-600 leading-relaxed">
+                      💡 {r.correct ? r.explanation : (r.distractor || r.explanation)}
+                    </p>
                   </div>
                 )}
               </div>
