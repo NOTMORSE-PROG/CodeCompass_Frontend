@@ -1204,11 +1204,27 @@ export default function RoadmapPage() {
     let skillNum = 0
     currentRoadmap.nodes.forEach((node, idx) => {
       if (node.nodeType !== 'milestone') skillNum++
+
+      let prereq = null
+      if (node.status === 'locked') {
+        if (node.nodeType === 'certification') {
+          // Certifications unlock based on the last node of the PREVIOUS phase,
+          // so all certs in a phase become available at once rather than chaining.
+          const prevNodes = currentRoadmap.nodes.slice(0, idx)
+          const reversedPrev = [...prevNodes].reverse()
+          const msFromEnd = reversedPrev.findIndex((n) => n.nodeType === 'milestone')
+          const nodesBeforePhase = msFromEnd >= 0
+            ? prevNodes.slice(0, prevNodes.length - 1 - msFromEnd)
+            : prevNodes
+          prereq = nodesBeforePhase.filter((n) => n.nodeType !== 'milestone').at(-1) ?? null
+        } else {
+          prereq = currentRoadmap.nodes.slice(0, idx).filter((n) => n.nodeType !== 'milestone').at(-1) ?? null
+        }
+      }
+
       nodeDisplayData[node.id] = {
         displayNum: node.nodeType !== 'milestone' ? skillNum : null,
-        prereq: node.status === 'locked'
-          ? currentRoadmap.nodes.slice(0, idx).filter((n) => n.nodeType !== 'milestone').at(-1)
-          : null,
+        prereq,
       }
     })
   }
