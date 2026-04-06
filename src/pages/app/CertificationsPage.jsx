@@ -633,32 +633,51 @@ function CertCard({ cert, tracking, onTrack, onUntrack, onOpenDetail }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function CertificationsPage() {
   const [certs, setCerts] = useState([])
+  const [allCerts, setAllCerts] = useState([])
   const [myTracking, setMyTracking] = useState([])
   const [selectedProvider, setSelectedProvider] = useState('all')
   const [search, setSearch] = useState('')
   const [activeTab, setActiveTab] = useState('browse')
   const [isLoading, setIsLoading] = useState(true)
+  const [page, setPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const [hasNext, setHasNext] = useState(false)
+  const [hasPrev, setHasPrev] = useState(false)
   const [detailCert, setDetailCert] = useState(null)
   const [roadmapNodes, setRoadmapNodes] = useState([])
   const [roadmapTitle, setRoadmapTitle] = useState('')
   const [isLoadingRecs, setIsLoadingRecs] = useState(true)
 
+  // Load ALL certs once (used for recommendations scoring only)
   useEffect(() => {
-    const load = async () => {
-      setIsLoading(true)
-      try {
-        const [certsRes, myRes] = await Promise.all([
-          certApi.listAll(),
-          certApi.listMy(),
-        ])
-        setCerts(certsRes.data.results || certsRes.data)
+    certApi.listAll({ page_size: 500 })
+      .then((res) => setAllCerts(res.data.results || res.data))
+      .catch(() => {})
+  }, [])
+
+  // Paginated display fetch — reruns when page/filter/search changes
+  useEffect(() => {
+    setIsLoading(true)
+    const params = { page }
+    if (selectedProvider !== 'all') params.provider = selectedProvider
+    if (search.trim()) params.search = search.trim()
+
+    Promise.all([certApi.listAll(params), certApi.listMy()])
+      .then(([certsRes, myRes]) => {
+        const data = certsRes.data
+        setCerts(data.results || data)
+        setTotalCount(data.count ?? 0)
+        setHasNext(!!data.next)
+        setHasPrev(!!data.previous)
         setMyTracking(myRes.data.results || myRes.data)
-      } catch {
-        /* silent */
-      } finally {
-        setIsLoading(false)
-      }
-      // Fetch primary roadmap for recommendations (non-blocking)
+      })
+      .catch(() => {})
+      .finally(() => setIsLoading(false))
+  }, [page, selectedProvider, search])
+
+  // Load roadmap for recommendations (runs once at mount)
+  useEffect(() => {
+    const loadRoadmap = async () => {
       try {
         const listRes = await roadmapApi.list()
         const roadmaps = listRes.data.results || listRes.data
@@ -674,7 +693,7 @@ export default function CertificationsPage() {
         setIsLoadingRecs(false)
       }
     }
-    load()
+    loadRoadmap()
   }, [])
 
   const handleTrack = async (certId, trackingId, newStatus) => {
@@ -712,15 +731,6 @@ export default function CertificationsPage() {
     [myTracking]
   )
 
-  const filtered = useMemo(() => {
-    let list = certs
-    if (selectedProvider !== 'all') list = list.filter((c) => c.provider === selectedProvider)
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      list = list.filter((c) => c.name.toLowerCase().includes(q) || c.description?.toLowerCase().includes(q))
-    }
-    return list
-  }, [certs, selectedProvider, search])
 
   const myCerts = useMemo(
     () => myTracking.map((t) => ({ cert: t.certification, tracking: t })).filter((x) => x.cert),
@@ -732,12 +742,12 @@ export default function CertificationsPage() {
 
   // Dynamically score DB certs against the user's roadmap node titles
   const recommendations = useMemo(() => {
-    if (!roadmapNodes.length || !certs.length) return []
+    if (!roadmapNodes.length || !allCerts.length) return []
     const roadmapText = roadmapNodes
       .filter((n) => n.nodeType !== 'milestone')
       .map((n) => n.title.toLowerCase())
       .join(' ')
-    return certs
+    return allCerts
       .filter((c) => !trackingMap[c.id])
       .map((c) => ({
         cert: c,
@@ -747,7 +757,7 @@ export default function CertificationsPage() {
       .sort((a, b) => b.score - a.score)
       .slice(0, 4)
       .map(({ cert }) => cert)
-  }, [certs, roadmapNodes, trackingMap])
+  }, [allCerts, roadmapNodes, trackingMap])
 
   return (
     <div>
@@ -809,12 +819,12 @@ export default function CertificationsPage() {
               type="text"
               placeholder="Search certifications..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setPage(1); setSearch(e.target.value) }}
               className="w-full pl-9 pr-9 py-2.5 rounded-lg border border-gray-200 text-sm
                          focus:outline-none focus:ring-2 focus:ring-brand-yellow"
             />
             {search && (
-              <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2">
+              <button onClick={() => { setPage(1); setSearch('') }} className="absolute right-3 top-1/2 -translate-y-1/2">
                 <XMarkIcon className="w-4 h-4 text-gray-400 hover:text-gray-600" />
               </button>
             )}
@@ -825,7 +835,7 @@ export default function CertificationsPage() {
             {PROVIDERS.map(({ value, label }) => (
               <button
                 key={value}
-                onClick={() => setSelectedProvider(value)}
+                onClick={() => { setPage(1); setSelectedProvider(value) }}
                 className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
                   selectedProvider === value
                     ? 'bg-brand-yellow text-brand-black'
@@ -839,7 +849,7 @@ export default function CertificationsPage() {
 
           {!isLoading && (
             <p className="text-xs text-brand-gray-mid mb-4">
-              {filtered.length} certification{filtered.length !== 1 ? 's' : ''} — click any card to see how to get it
+              {totalCount} certification{totalCount !== 1 ? 's' : ''} — click any card to see how to get it
             </p>
           )}
 
@@ -847,28 +857,54 @@ export default function CertificationsPage() {
             <div className="flex justify-center py-20">
               <div className="w-8 h-8 border-2 border-brand-yellow border-t-transparent rounded-full animate-spin" />
             </div>
-          ) : filtered.length === 0 ? (
+          ) : certs.length === 0 ? (
             <div className="text-center py-20">
               <div className="text-4xl mb-3">🏅</div>
               <p className="text-brand-gray-mid">
-                {certs.length === 0
+                {totalCount === 0
                   ? 'No certifications yet. Run the seed command first!'
                   : 'No certifications match your filters.'}
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filtered.map((cert) => (
-                <CertCard
-                  key={cert.id}
-                  cert={cert}
-                  tracking={trackingMap[cert.id]}
-                  onTrack={handleTrack}
-                  onUntrack={handleUntrack}
-                  onOpenDetail={setDetailCert}
-                />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {certs.map((cert) => (
+                  <CertCard
+                    key={cert.id}
+                    cert={cert}
+                    tracking={trackingMap[cert.id]}
+                    onTrack={handleTrack}
+                    onUntrack={handleUntrack}
+                    onOpenDetail={setDetailCert}
+                  />
+                ))}
+              </div>
+
+              {(hasPrev || hasNext) && (
+                <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100">
+                  <button
+                    onClick={() => setPage((p) => p - 1)}
+                    disabled={!hasPrev}
+                    className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-200
+                               disabled:opacity-40 disabled:cursor-not-allowed hover:border-brand-yellow transition-all"
+                  >
+                    ← Previous
+                  </button>
+                  <span className="text-xs text-brand-gray-mid">
+                    Page {page} of {Math.ceil(totalCount / 10)}
+                  </span>
+                  <button
+                    onClick={() => setPage((p) => p + 1)}
+                    disabled={!hasNext}
+                    className="px-4 py-2 text-sm font-medium rounded-lg border border-gray-200
+                               disabled:opacity-40 disabled:cursor-not-allowed hover:border-brand-yellow transition-all"
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </>
       ) : (
