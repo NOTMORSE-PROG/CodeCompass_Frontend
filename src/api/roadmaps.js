@@ -21,10 +21,8 @@ export const roadmapApi = {
     apiClient.patch(`/roadmaps/${roadmapId}/edit/`, changes),
   editNodeContent: (roadmapId, nodeId, changes) =>
     apiClient.patch(`/roadmaps/${roadmapId}/nodes/${nodeId}/edit/`, changes),
-  addNode: (roadmapId, payload) =>
-    apiClient.post(`/roadmaps/${roadmapId}/nodes/add/`, payload),
-  removeNode: (roadmapId, nodeId) =>
-    apiClient.delete(`/roadmaps/${roadmapId}/nodes/${nodeId}/remove/`),
+  replaceNode: (roadmapId, nodeId, payload) =>
+    apiClient.patch(`/roadmaps/${roadmapId}/nodes/${nodeId}/replace/`, payload),
   unlockVideoWatch: (roadmapId, nodeId, resourceId) =>
     apiClient.post(`/roadmaps/${roadmapId}/nodes/${nodeId}/resources/${resourceId}/unlock/`),
   switchRoadmap: (data) => apiClient.post('/roadmaps/switch/', data),

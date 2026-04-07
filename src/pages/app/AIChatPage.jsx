@@ -328,11 +328,11 @@ function buildConfirmation(proposals) {
 function isCompleteProposals(arr) {
   if (!arr || !Array.isArray(arr) || arr.length === 0) return false
   const ph = (v) => v == null || String(v).trim() === '' || String(v).trim() === '?'
-  const VALID = ['edit_node', 'edit_roadmap', 'add_node', 'remove_node']
+  const VALID = ['edit_node', 'edit_roadmap', 'replace_node']
   return arr.every((p) => {
     if (!p || !VALID.includes(p.action) || ph(p.roadmap_id) || ph(p.summary)) return false
-    if (['edit_node', 'remove_node'].includes(p.action) && ph(p.node_id)) return false
-    if (['edit_node', 'edit_roadmap', 'add_node'].includes(p.action)) {
+    if (['edit_node', 'replace_node'].includes(p.action) && ph(p.node_id)) return false
+    if (['edit_node', 'edit_roadmap', 'replace_node'].includes(p.action)) {
       if (!p.changes || Object.keys(p.changes).length === 0) return false
       if (Object.values(p.changes).some((v) => ph(v))) return false
     }
@@ -346,7 +346,7 @@ function isCompleteProposals(arr) {
 function RoadmapEditProposalCard({ proposals, messageId, onApply, onDismiss }) {
   const [applying, setApplying] = useState(false)
   const pushLocalMessage = useChatStore((s) => s.pushLocalMessage)
-  const isDangerous = proposals.some((p) => p.action === 'remove_node')
+  const hasReplace = proposals.some((p) => p.action === 'replace_node')
 
   const handleApply = async () => {
     setApplying(true)
@@ -375,21 +375,18 @@ function RoadmapEditProposalCard({ proposals, messageId, onApply, onDismiss }) {
           ))}
         </ul>
       )}
-      {isDangerous && (
-        <div className="mb-3 rounded border border-red-300 bg-red-50 px-2 py-1.5 text-xs text-red-700">
-          This will permanently delete a node. This cannot be undone.
+      {hasReplace && (
+        <div className="mb-3 rounded border border-amber-300 bg-amber-100 px-2 py-1.5 text-xs text-amber-800">
+          This will reset the node's progress to locked. You can only replace a node once per day.
         </div>
       )}
       <div className="flex gap-2">
         <button
           onClick={handleApply}
           disabled={applying}
-          className={`px-3 py-1 rounded text-white text-xs font-medium disabled:opacity-50 transition-colors
-            ${isDangerous
-              ? 'bg-red-500 hover:bg-red-600'
-              : 'bg-amber-500 hover:bg-amber-600'}`}
+          className="px-3 py-1 rounded text-white text-xs font-medium disabled:opacity-50 transition-colors bg-amber-500 hover:bg-amber-600"
         >
-          {applying ? 'Applying…' : isDangerous ? 'Confirm & Apply' : 'Apply'}
+          {applying ? 'Applying…' : 'Apply'}
         </button>
         <button
           onClick={() => onDismiss(messageId)}

@@ -59,7 +59,7 @@ const useRoadmapStore = create((set, get) => ({
   applyEditProposals: async (proposals) => {
     const list = Array.isArray(proposals) ? proposals : [proposals]
     const isPlaceholder = (v) => v == null || String(v).trim() === '' || String(v).trim() === '?'
-    const VALID_ACTIONS = ['edit_node', 'edit_roadmap', 'add_node', 'remove_node']
+    const VALID_ACTIONS = ['edit_node', 'edit_roadmap', 'replace_node']
 
     // Validate all proposals before executing any
     for (const p of list) {
@@ -68,11 +68,11 @@ const useRoadmapStore = create((set, get) => ({
         toast.error('This proposal is incomplete — ask the AI to clarify.')
         return false
       }
-      if (['edit_node', 'remove_node'].includes(action) && isPlaceholder(node_id)) {
+      if (['edit_node', 'replace_node'].includes(action) && isPlaceholder(node_id)) {
         toast.error('This proposal is incomplete — ask the AI to clarify.')
         return false
       }
-      if (['edit_node', 'edit_roadmap', 'add_node'].includes(action)) {
+      if (['edit_node', 'edit_roadmap', 'replace_node'].includes(action)) {
         if (!changes || typeof changes !== 'object' || Object.keys(changes).length === 0
             || Object.values(changes).some(isPlaceholder)) {
           toast.error('This proposal is incomplete — ask the AI to clarify.')
@@ -89,18 +89,21 @@ const useRoadmapStore = create((set, get) => ({
           await roadmapApi.editRoadmapMeta(roadmap_id, changes)
         } else if (action === 'edit_node') {
           await roadmapApi.editNodeContent(roadmap_id, node_id, changes)
-        } else if (action === 'add_node') {
-          await roadmapApi.addNode(roadmap_id, changes)
-        } else if (action === 'remove_node') {
-          await roadmapApi.removeNode(roadmap_id, node_id)
+        } else if (action === 'replace_node') {
+          await roadmapApi.replaceNode(roadmap_id, node_id, changes)
         }
       }
       // Single re-fetch after all actions complete
       await get().fetchRoadmap(list[0].roadmap_id)
       toast.success(list.length > 1 ? `${list.length} changes applied!` : 'Roadmap updated!')
       return true
-    } catch {
-      toast.error('Could not apply that change.')
+    } catch (error) {
+      const detail = error?.response?.data?.detail
+      if (detail) {
+        toast.error(detail)
+      } else {
+        toast.error('Could not apply that change.')
+      }
       return false
     }
   },
