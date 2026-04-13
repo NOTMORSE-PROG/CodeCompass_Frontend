@@ -51,8 +51,10 @@ export default function App() {
         {/* Email verification — authenticated but not yet verified */}
         <Route element={<ProtectedRoute skipEmailCheck />}>
           <Route path="/verify-email-pending" element={<VerifyEmailPendingPage />} />
-          <Route path="/verify-email/:token" element={<VerifyEmailCallbackPage />} />
         </Route>
+
+        {/* Email verification callback — public so the link works from any browser/device */}
+        <Route path="/verify-email/:token" element={<VerifyEmailCallbackPage />} />
 
         {/* Onboarding — authenticated + email verified but not yet onboarded */}
         <Route element={<ProtectedRoute requireOnboarded={false} />}>

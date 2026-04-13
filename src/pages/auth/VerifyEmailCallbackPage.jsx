@@ -22,9 +22,10 @@ export default function VerifyEmailCallbackPage() {
         _saveSession({ access, refresh })
 
         setStatus('success')
-        // Brief pause so user sees the success state, then go to onboarding
+        // Brief pause so user sees the success state, then redirect based on onboarding status
         setTimeout(() => {
-          navigate('/onboarding', { replace: true })
+          const { user } = useAuthStore.getState()
+          navigate(user?.isOnboarded ? '/app/dashboard' : '/onboarding', { replace: true })
         }, 1500)
       } catch {
         if (!cancelled) setStatus('error')
