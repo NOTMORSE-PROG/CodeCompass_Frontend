@@ -80,6 +80,7 @@ apiClient.interceptors.response.use(
           refresh: refreshToken,
         })
         localStorage.setItem('access_token', data.access)
+        if (data.refresh) localStorage.setItem('refresh_token', data.refresh)
         apiClient.defaults.headers.Authorization = `Bearer ${data.access}`
         decodeAndUpdateUser(data.access)   // keep Zustand store in sync
         processQueue(null, data.access)
