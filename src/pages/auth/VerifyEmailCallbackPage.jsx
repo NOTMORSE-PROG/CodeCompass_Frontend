@@ -11,6 +11,7 @@ export default function VerifyEmailCallbackPage() {
 
   useEffect(() => {
     let cancelled = false
+    let timeoutId
 
     async function verify() {
       try {
@@ -18,12 +19,10 @@ export default function VerifyEmailCallbackPage() {
         if (cancelled) return
 
         const { access, refresh } = res.data
-        // Persist tokens and update user state (email_verified=true is now in the JWT)
         _saveSession({ access, refresh })
 
         setStatus('success')
-        // Brief pause so user sees the success state, then redirect based on onboarding status
-        setTimeout(() => {
+        timeoutId = setTimeout(() => {
           const { user } = useAuthStore.getState()
           navigate(user?.isOnboarded ? '/app/dashboard' : '/onboarding', { replace: true })
         }, 1500)
@@ -33,7 +32,10 @@ export default function VerifyEmailCallbackPage() {
     }
 
     verify()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+      clearTimeout(timeoutId)
+    }
   }, [token])  // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
