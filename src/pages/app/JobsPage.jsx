@@ -17,6 +17,7 @@ import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid'
 import { useEffect, useRef, useState } from 'react'
 import * as pdfjsLib from 'pdfjs-dist'
 import useJobsStore from '../../stores/jobsStore'
+import { resumesApi } from '../../api/resumes'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -382,7 +383,15 @@ async function extractPdfText(file) {
   return text.trim()
 }
 
-function ResumeBanner({ pdfFileName, isPdfLoading, hasPdfRecommendations, onFileSelect, onClear }) {
+function ResumeBanner({
+  pdfFileName,
+  isPdfLoading,
+  hasPdfRecommendations,
+  savedResumes,
+  onFileSelect,
+  onSavedResumeSelect,
+  onClear,
+}) {
   const fileInputRef = useRef(null)
   const [isDragging, setIsDragging] = useState(false)
 
@@ -427,38 +436,74 @@ function ResumeBanner({ pdfFileName, isPdfLoading, hasPdfRecommendations, onFile
     )
   }
 
-  // Default state: upload CTA
+  // Default state: upload CTA (+ saved-resume row when the user has resumes)
+  const hasSavedResumes = Array.isArray(savedResumes) && savedResumes.length > 0
+
   return (
-    <div
-      className={`mb-5 flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer
-        transition-colors select-none
-        ${isDragging
-          ? 'border-brand-yellow bg-brand-yellow/10'
-          : 'border-gray-200 bg-gray-50 hover:border-brand-yellow hover:bg-brand-yellow/5'
-        }`}
-      onClick={() => fileInputRef.current?.click()}
-      onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
-      onDragLeave={() => setIsDragging(false)}
-      onDrop={handleDrop}
-    >
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept=".pdf"
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files[0]
-          if (file) { onFileSelect(file); e.target.value = '' }
-        }}
-      />
-      <ArrowUpTrayIcon className="w-4 h-4 text-brand-gray-mid flex-shrink-0" />
-      <div className="flex-1 min-w-0">
-        <span className="text-sm font-medium text-brand-black">Upload your resume PDF </span>
-        <span className="text-sm text-brand-gray-mid">to get personalized job matches</span>
+    <div className="mb-5">
+      <div
+        className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 border-dashed cursor-pointer
+          transition-colors select-none
+          ${isDragging
+            ? 'border-brand-yellow bg-brand-yellow/10'
+            : 'border-gray-200 bg-gray-50 hover:border-brand-yellow hover:bg-brand-yellow/5'
+          }`}
+        onClick={() => fileInputRef.current?.click()}
+        onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
+        onDragLeave={() => setIsDragging(false)}
+        onDrop={handleDrop}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files[0]
+            if (file) { onFileSelect(file); e.target.value = '' }
+          }}
+        />
+        <ArrowUpTrayIcon className="w-4 h-4 text-brand-gray-mid flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <span className="text-sm font-medium text-brand-black">Upload your resume PDF </span>
+          <span className="text-sm text-brand-gray-mid">to get personalized job matches</span>
+        </div>
+        <span className="flex-shrink-0 text-xs font-semibold text-brand-yellow bg-brand-yellow/10 px-2.5 py-1 rounded-full">
+          PDF only
+        </span>
       </div>
-      <span className="flex-shrink-0 text-xs font-semibold text-brand-yellow bg-brand-yellow/10 px-2.5 py-1 rounded-full">
-        PDF only
-      </span>
+
+      {hasSavedResumes && (
+        <div className="mt-3">
+          <div className="flex items-center gap-2 text-xs text-brand-gray-mid mb-2">
+            <span className="flex-1 border-t border-gray-200" />
+            <span>or use a saved resume</span>
+            <span className="flex-1 border-t border-gray-200" />
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+            {savedResumes.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => onSavedResumeSelect(r)}
+                className="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200
+                           bg-white hover:border-brand-yellow hover:bg-brand-yellow/5 transition-colors"
+                title={r.title}
+              >
+                <DocumentTextIcon className="w-4 h-4 text-brand-gray-mid flex-shrink-0" />
+                <span className="text-sm font-medium text-brand-black truncate max-w-[160px]">
+                  {r.title}
+                </span>
+                {r.templateName && (
+                  <span className="text-[10px] font-semibold text-brand-gray-mid bg-gray-100 px-1.5 py-0.5 rounded-full uppercase tracking-wide flex-shrink-0">
+                    {r.templateName}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -473,7 +518,7 @@ export default function JobsPage() {
     totalCount, currentPage, pageSize,
     pdfRecommendations, isPdfLoading, hasPdfRecommendations,
     fetchJobs, fetchSavedJobs,
-    getRecommendationsFromResume, clearPdfRecommendations,
+    getRecommendationsFromResume, getRecommendationsFromResumeId, clearPdfRecommendations,
   } = useJobsStore()
 
   const [activeTab, setActiveTab] = useState('all')
@@ -481,6 +526,7 @@ export default function JobsPage() {
   const [activeFilter, setActiveFilter] = useState('')
   const [selectedJob, setSelectedJob] = useState(null)
   const [pdfFileName, setPdfFileName] = useState('')
+  const [savedResumes, setSavedResumes] = useState([])
   const debounceRef = useRef(null)
 
   const totalPages = Math.ceil(totalCount / pageSize)
@@ -496,6 +542,23 @@ export default function JobsPage() {
     fetchSavedJobs()
     fetchJobs({ page: 1 })
   }, [fetchSavedJobs, fetchJobs])
+
+  // Load the user's saved resumes for the "or use a saved resume" row.
+  // Failures silently hide the feature for this session; new users (no resumes) also see nothing.
+  useEffect(() => {
+    let cancelled = false
+    resumesApi
+      .list()
+      .then(({ data }) => {
+        if (cancelled) return
+        const list = Array.isArray(data) ? data : (data.results || [])
+        setSavedResumes(list)
+      })
+      .catch(() => {
+        if (!cancelled) setSavedResumes([])
+      })
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     if (activeTab !== 'all') return
@@ -520,6 +583,21 @@ export default function JobsPage() {
     } catch {
       clearPdfRecommendations()
       setPdfFileName('')
+    }
+  }
+
+  const handleSavedResumeSelect = async (resume) => {
+    setPdfFileName(resume.title)
+    const result = await getRecommendationsFromResumeId(resume.id)
+    if (!result.ok) {
+      // Backend returned an error (e.g. "too little content"). Reset the banner
+      // and surface whatever message we got.
+      setPdfFileName('')
+      if (result.detail) {
+        // Match the existing pattern — JobsPage currently has no toast helper, so
+        // a simple alert keeps the user informed without a new dependency.
+        window.alert(result.detail)
+      }
     }
   }
 
@@ -615,7 +693,9 @@ export default function JobsPage() {
             pdfFileName={pdfFileName}
             isPdfLoading={isPdfLoading}
             hasPdfRecommendations={hasPdfRecommendations}
+            savedResumes={savedResumes}
             onFileSelect={handlePdfSelect}
+            onSavedResumeSelect={handleSavedResumeSelect}
             onClear={handleClearPdf}
           />
 

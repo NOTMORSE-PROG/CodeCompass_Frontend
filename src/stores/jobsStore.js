@@ -66,6 +66,20 @@ const useJobsStore = create((set) => ({
     }
   },
 
+  getRecommendationsFromResumeId: async (resumeId) => {
+    set({ isPdfLoading: true })
+    try {
+      const { data } = await jobsApi.recommendFromResumeId(resumeId)
+      set({ pdfRecommendations: data, hasPdfRecommendations: true })
+      return { ok: true }
+    } catch (err) {
+      set({ pdfRecommendations: [], hasPdfRecommendations: false })
+      return { ok: false, detail: err.response?.data?.detail ?? null }
+    } finally {
+      set({ isPdfLoading: false })
+    }
+  },
+
   clearPdfRecommendations: () => {
     set({ pdfRecommendations: [], hasPdfRecommendations: false, isPdfLoading: false })
   },
