@@ -388,6 +388,7 @@ function ResumeBanner({
   isPdfLoading,
   hasPdfRecommendations,
   savedResumes,
+  resumeError,
   onFileSelect,
   onSavedResumeSelect,
   onClear,
@@ -502,6 +503,12 @@ function ResumeBanner({
               </button>
             ))}
           </div>
+          {resumeError && (
+            <div className="mt-2 flex items-start gap-2 px-3 py-2 rounded-lg bg-red-50 border border-red-200">
+              <ExclamationCircleIcon className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-red-700 leading-relaxed">{resumeError}</p>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -527,6 +534,7 @@ export default function JobsPage() {
   const [selectedJob, setSelectedJob] = useState(null)
   const [pdfFileName, setPdfFileName] = useState('')
   const [savedResumes, setSavedResumes] = useState([])
+  const [resumeError, setResumeError] = useState('')
   const debounceRef = useRef(null)
 
   const totalPages = Math.ceil(totalCount / pageSize)
@@ -587,23 +595,19 @@ export default function JobsPage() {
   }
 
   const handleSavedResumeSelect = async (resume) => {
+    setResumeError('')
     setPdfFileName(resume.title)
     const result = await getRecommendationsFromResumeId(resume.id)
     if (!result.ok) {
-      // Backend returned an error (e.g. "too little content"). Reset the banner
-      // and surface whatever message we got.
       setPdfFileName('')
-      if (result.detail) {
-        // Match the existing pattern — JobsPage currently has no toast helper, so
-        // a simple alert keeps the user informed without a new dependency.
-        window.alert(result.detail)
-      }
+      if (result.detail) setResumeError(result.detail)
     }
   }
 
   const handleClearPdf = () => {
     clearPdfRecommendations()
     setPdfFileName('')
+    setResumeError('')
   }
 
   const goToPage = (page) => {
@@ -694,6 +698,7 @@ export default function JobsPage() {
             isPdfLoading={isPdfLoading}
             hasPdfRecommendations={hasPdfRecommendations}
             savedResumes={savedResumes}
+            resumeError={resumeError}
             onFileSelect={handlePdfSelect}
             onSavedResumeSelect={handleSavedResumeSelect}
             onClear={handleClearPdf}
