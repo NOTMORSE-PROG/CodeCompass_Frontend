@@ -56,7 +56,16 @@ const useRoadmapStore = create((set, get) => ({
     }
   },
 
-  applyEditProposals: async (proposals) => {
+  applyEditProposals: async (proposals, { sessionId, contextType } = {}) => {
+    // Scope guard — mirror the backend's FromRoadmapScopedSession permission
+    // so users in non-roadmap chat tabs don't get to apply roadmap mutations.
+    // Caller (AIChatPage) passes contextType from the session that produced
+    // the proposal; if omitted, we fall through (legacy / non-chat callers).
+    if (contextType && contextType !== 'roadmap') {
+      toast.error('Roadmap changes only apply from the Roadmap tab.')
+      return false
+    }
+
     const list = Array.isArray(proposals) ? proposals : [proposals]
     const isPlaceholder = (v) => v == null || String(v).trim() === '' || String(v).trim() === '?'
     const VALID_ACTIONS = ['edit_node', 'edit_roadmap', 'replace_node']
@@ -86,11 +95,11 @@ const useRoadmapStore = create((set, get) => ({
       for (const p of list) {
         const { action, roadmap_id, node_id, changes } = p
         if (action === 'edit_roadmap') {
-          await roadmapApi.editRoadmapMeta(roadmap_id, changes)
+          await roadmapApi.editRoadmapMeta(roadmap_id, changes, { sessionId })
         } else if (action === 'edit_node') {
-          await roadmapApi.editNodeContent(roadmap_id, node_id, changes)
+          await roadmapApi.editNodeContent(roadmap_id, node_id, changes, { sessionId })
         } else if (action === 'replace_node') {
-          await roadmapApi.replaceNode(roadmap_id, node_id, changes)
+          await roadmapApi.replaceNode(roadmap_id, node_id, changes, { sessionId })
         }
       }
       // Single re-fetch after all actions complete
@@ -108,10 +117,17 @@ const useRoadmapStore = create((set, get) => ({
     }
   },
 
-  upskillRoadmap: async (upskillProposal) => {
+  upskillRoadmap: async (upskillProposal, { sessionId, contextType } = {}) => {
+    if (contextType && contextType !== 'roadmap') {
+      toast.error('Roadmap changes only apply from the Roadmap tab.')
+      return false
+    }
     set({ isGenerating: true })
     try {
-      const { data } = await roadmapApi.upskillRoadmap({ roadmap_id: upskillProposal.roadmap_id })
+      const { data } = await roadmapApi.upskillRoadmap(
+        { roadmap_id: upskillProposal.roadmap_id },
+        { sessionId },
+      )
       set((state) => ({
         roadmaps: [data, ...state.roadmaps.filter(r => r.id !== upskillProposal.roadmap_id)],
         currentRoadmap: data,
@@ -127,14 +143,21 @@ const useRoadmapStore = create((set, get) => ({
     }
   },
 
-  switchRoadmap: async (switchProposal) => {
+  switchRoadmap: async (switchProposal, { sessionId, contextType } = {}) => {
+    if (contextType && contextType !== 'roadmap') {
+      toast.error('Roadmap changes only apply from the Roadmap tab.')
+      return false
+    }
     set({ isGenerating: true })
     try {
-      const { data } = await roadmapApi.switchRoadmap({
-        roadmap_id: switchProposal.roadmap_id,
-        new_path: switchProposal.new_path,
-        career_goal: switchProposal.career_goal,
-      })
+      const { data } = await roadmapApi.switchRoadmap(
+        {
+          roadmap_id: switchProposal.roadmap_id,
+          new_path: switchProposal.new_path,
+          career_goal: switchProposal.career_goal,
+        },
+        { sessionId },
+      )
       set((state) => ({
         roadmaps: [data, ...state.roadmaps.filter(r => r.id !== switchProposal.roadmap_id)],
         currentRoadmap: data,

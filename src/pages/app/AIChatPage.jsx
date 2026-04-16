@@ -709,6 +709,31 @@ export default function AIChatPage() {
 
   const activeContextType = ALL_MODES.find((m) => m.key === activeMode)?.contextType || 'general'
 
+  // Defense-in-depth for roadmap mutations: the action cards bind these
+  // handlers at render time. They inject the current chat session's ID
+  // (for the backend's FromRoadmapScopedSession permission) and the
+  // active contextType (for the client-side guard in roadmapStore), so a
+  // stale proposal surfaced outside the Roadmap tab can't slip through.
+  const applyEditProposalsScoped = useCallback(
+    (proposals) => applyEditProposals(proposals, {
+      sessionId: currentSessionId, contextType: activeContextType,
+    }),
+    [applyEditProposals, currentSessionId, activeContextType],
+  )
+  const switchRoadmapScoped = useCallback(
+    (proposal) => switchRoadmap(proposal, {
+      sessionId: currentSessionId, contextType: activeContextType,
+    }),
+    [switchRoadmap, currentSessionId, activeContextType],
+  )
+  const upskillRoadmapScoped = useCallback(
+    (proposal) => upskillRoadmap(proposal, {
+      sessionId: currentSessionId, contextType: activeContextType,
+    }),
+    [upskillRoadmap, currentSessionId, activeContextType],
+  )
+  const canShowRoadmapCards = activeMode === 'roadmap'
+
   const handleSend = () => {
     if (!input.trim() || isStreaming) return
     sendMessage(input.trim(), activeContextType)
@@ -929,12 +954,12 @@ export default function AIChatPage() {
                   </div>
                 )}
               </div>
-              {msg.role === 'assistant' && isCompleteProposals(msg.editProposals) && (
+              {msg.role === 'assistant' && canShowRoadmapCards && isCompleteProposals(msg.editProposals) && (
                 <div className="ml-10">
                   <RoadmapEditProposalCard
                     proposals={msg.editProposals}
                     messageId={msg.id}
-                    onApply={applyEditProposals}
+                    onApply={applyEditProposalsScoped}
                     onDismiss={dismissEditProposals}
                   />
                 </div>
@@ -944,24 +969,24 @@ export default function AIChatPage() {
                   <ResourceStrip resources={msg.resources} />
                 </div>
               )}
-              {msg.role === 'assistant' && msg.roadmapSwitch && (
+              {msg.role === 'assistant' && canShowRoadmapCards && msg.roadmapSwitch && (
                 <div className="ml-10 max-w-[75%]">
                   <RoadmapSwitchConfirmCard
                     proposal={msg.roadmapSwitch}
                     messageId={msg.id}
                     currentRoadmap={primaryRoadmap}
-                    onSwitch={switchRoadmap}
+                    onSwitch={switchRoadmapScoped}
                     onDismiss={dismissRoadmapSwitch}
                   />
                 </div>
               )}
-              {msg.role === 'assistant' && msg.roadmapUpskill && (
+              {msg.role === 'assistant' && canShowRoadmapCards && msg.roadmapUpskill && (
                 <div className="ml-10 max-w-[75%]">
                   <RoadmapUpskillCard
                     proposal={msg.roadmapUpskill}
                     messageId={msg.id}
                     currentRoadmap={primaryRoadmap}
-                    onUpskill={upskillRoadmap}
+                    onUpskill={upskillRoadmapScoped}
                     onDismiss={dismissRoadmapUpskill}
                   />
                 </div>

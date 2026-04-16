@@ -17,14 +17,24 @@ export const roadmapApi = {
       `/roadmaps/${roadmapId}/nodes/${nodeId}/resources/${resourceId}/assessment/${sessionId}/submit/`,
       { answers }
     ),
-  editRoadmapMeta: (roadmapId, changes) =>
-    apiClient.patch(`/roadmaps/${roadmapId}/edit/`, changes),
-  editNodeContent: (roadmapId, nodeId, changes) =>
-    apiClient.patch(`/roadmaps/${roadmapId}/nodes/${nodeId}/edit/`, changes),
-  replaceNode: (roadmapId, nodeId, payload) =>
-    apiClient.patch(`/roadmaps/${roadmapId}/nodes/${nodeId}/replace/`, payload),
+  // Roadmap mutation endpoints — optional second arg { sessionId } attaches
+  // the X-Chat-Session-Id header. Backend's FromRoadmapScopedSession permission
+  // verifies the session scope is 'roadmap' before applying, blocking mutations
+  // that originate from a Jobs/General/University chat session.
+  editRoadmapMeta: (roadmapId, changes, { sessionId } = {}) =>
+    apiClient.patch(`/roadmaps/${roadmapId}/edit/`, changes, _scopeHeaders(sessionId)),
+  editNodeContent: (roadmapId, nodeId, changes, { sessionId } = {}) =>
+    apiClient.patch(`/roadmaps/${roadmapId}/nodes/${nodeId}/edit/`, changes, _scopeHeaders(sessionId)),
+  replaceNode: (roadmapId, nodeId, payload, { sessionId } = {}) =>
+    apiClient.patch(`/roadmaps/${roadmapId}/nodes/${nodeId}/replace/`, payload, _scopeHeaders(sessionId)),
   unlockVideoWatch: (roadmapId, nodeId, resourceId) =>
     apiClient.post(`/roadmaps/${roadmapId}/nodes/${nodeId}/resources/${resourceId}/unlock/`),
-  switchRoadmap: (data) => apiClient.post('/roadmaps/switch/', data),
-  upskillRoadmap: (data) => apiClient.post('/roadmaps/upskill/', data),
+  switchRoadmap: (data, { sessionId } = {}) =>
+    apiClient.post('/roadmaps/switch/', data, _scopeHeaders(sessionId)),
+  upskillRoadmap: (data, { sessionId } = {}) =>
+    apiClient.post('/roadmaps/upskill/', data, _scopeHeaders(sessionId)),
+}
+
+function _scopeHeaders(sessionId) {
+  return sessionId ? { headers: { 'X-Chat-Session-Id': sessionId } } : {}
 }
