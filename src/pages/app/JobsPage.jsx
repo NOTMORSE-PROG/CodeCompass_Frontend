@@ -12,6 +12,7 @@ import {
   ArrowUpTrayIcon,
   DocumentTextIcon,
   SparklesIcon,
+  ExclamationCircleIcon,
 } from '@heroicons/react/24/outline'
 import { BookmarkIcon as BookmarkSolidIcon } from '@heroicons/react/24/solid'
 import { useEffect, useRef, useState } from 'react'
