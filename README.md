@@ -130,3 +130,5 @@ The app runs at `http://localhost:5173`.
 ## Deployment
 
 Deployed on **Vercel**. Set the three environment variables in the Vercel project settings. Use `wss://` for `VITE_WS_URL` in production.
+
+**Live URL:** https://code-compass-ccs.vercel.app
