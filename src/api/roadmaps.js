@@ -17,6 +17,13 @@ export const roadmapApi = {
       `/roadmaps/${roadmapId}/nodes/${nodeId}/resources/${resourceId}/assessment/${sessionId}/submit/`,
       { answers }
     ),
+  startFinalAssessment: (roadmapId) =>
+    apiClient.post(`/roadmaps/${roadmapId}/final-assessment/`),
+  submitFinalAssessment: (roadmapId, sessionId, answers) =>
+    apiClient.post(
+      `/roadmaps/${roadmapId}/final-assessment/${sessionId}/submit/`,
+      { answers }
+    ),
   // Roadmap mutation endpoints — optional second arg { sessionId } attaches
   // the X-Chat-Session-Id header. Backend's FromRoadmapScopedSession permission
   // verifies the session scope is 'roadmap' before applying, blocking mutations

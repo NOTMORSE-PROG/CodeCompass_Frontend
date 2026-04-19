@@ -24,7 +24,8 @@ function fireSmallConfetti() {
 export default function QuizPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { roadmapId, nodeId, resource } = location.state ?? {}
+  const { roadmapId, nodeId, resource, mode } = location.state ?? {}
+  const isFinalMode = mode === 'final'
 
   const [quizStatus, setQuizStatus] = useState('loading')
   // 'loading' | 'questions' | 'submitting' | 'passed' | 'failed'
@@ -36,9 +37,14 @@ export default function QuizPage() {
   const [timeLeft, setTimeLeft] = useState(15)
   const [selectedAnswer, setSelectedAnswer] = useState(null)
 
-  // Redirect if no state provided (direct URL visit)
+  // Redirect if no state provided (direct URL visit).
+  // Final mode only needs roadmapId; video mode needs nodeId + resource too.
   useEffect(() => {
-    if (!roadmapId || !nodeId || !resource) {
+    if (!roadmapId) {
+      navigate('/app/roadmap', { replace: true })
+      return
+    }
+    if (!isFinalMode && (!nodeId || !resource)) {
       navigate('/app/roadmap', { replace: true })
       return
     }
@@ -65,7 +71,9 @@ export default function QuizPage() {
     setSelectedAnswer(null)
     setResult(null)
     try {
-      const { data } = await roadmapApi.startAssessment(roadmapId, nodeId, resource.id)
+      const { data } = isFinalMode
+        ? await roadmapApi.startFinalAssessment(roadmapId)
+        : await roadmapApi.startAssessment(roadmapId, nodeId, resource.id)
       setSessionId(data.sessionId)
       setQuestions(data.questions)
       setQuizStatus('questions')
@@ -105,9 +113,11 @@ export default function QuizPage() {
   async function handleSubmitFinal(finalAnswers) {
     setQuizStatus('submitting')
     try {
-      const { data } = await roadmapApi.submitAssessment(
-        roadmapId, nodeId, resource.id, sessionId, finalAnswers
-      )
+      const { data } = isFinalMode
+        ? await roadmapApi.submitFinalAssessment(roadmapId, sessionId, finalAnswers)
+        : await roadmapApi.submitAssessment(
+            roadmapId, nodeId, resource.id, sessionId, finalAnswers
+          )
       setResult(data)
       setQuizStatus(data.passed ? 'passed' : 'failed')
       if (data.passed) fireSmallConfetti()
@@ -119,6 +129,11 @@ export default function QuizPage() {
 
   // ── Navigation after quiz ─────────────────────────────────────────────────────
   function handleBackPassed() {
+    if (isFinalMode) {
+      // Final assessment pass: roadmap page should refresh to show unlocked certs.
+      navigate('/app/roadmap', { state: { finalAssessmentPassed: true } })
+      return
+    }
     navigate('/app/roadmap', {
       state: {
         quizPassed: true,

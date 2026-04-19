@@ -15,17 +15,26 @@ const NODE_TYPE_LABEL = {
   project: 'PROJECT',
   certification: 'CERT',
   assessment: 'QUIZ',
+  final_assessment: 'FINAL',
 }
 
 const DIFFICULTY_LABELS = ['', 'Beginner', 'Easy', 'Intermediate', 'Hard', 'Expert']
 
 // Sub-section grouping: types listed here get their own labeled divider within a phase.
-// Order determines render priority (after regular skill/assessment nodes).
+// Certifications used to be a per-phase sub-section, but now render globally as a
+// trailing section (see GLOBAL_TRAILING_TYPES below).
 const SUB_SECTION_TYPES = [
-  { type: 'project',       label: 'Projects'       },
-  { type: 'certification', label: 'Certifications' },
+  { type: 'project', label: 'Projects' },
 ]
 const SUB_SECTION_TYPE_SET = new Set(SUB_SECTION_TYPES.map((s) => s.type))
+
+// Global trailing sections — collected out of per-phase groupings and rendered
+// after all phases in this order. Only applied when the roadmap actually contains
+// a final_assessment node; otherwise legacy layout (per-phase certs) is preserved.
+const GLOBAL_TRAILING_SECTIONS = [
+  { type: 'final_assessment', label: 'Phase 4: Final Assessment' },
+  { type: 'certification',    label: 'Phase 5: Certifications'   },
+]
 
 // Titles matching these are opinion/meta videos, not actual lessons.
 // Must stay in sync with backend _META_TITLE_PATTERNS in youtube_client.py.
@@ -97,6 +106,32 @@ function SubSectionDivider({ label }) {
       <div className="flex-1 h-px bg-gray-100" />
       <span className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">{label}</span>
       <div className="flex-1 h-px bg-gray-100" />
+    </div>
+  )
+}
+
+function PhaseHeader({ label, completed, total, done, xpRemaining }) {
+  return (
+    <div className="flex items-center gap-3 py-2 mt-4">
+      <div className="flex-1 h-px bg-gray-200" />
+      <div
+        className={`px-4 py-1.5 rounded-full text-xs font-bold tracking-widest uppercase whitespace-nowrap ${
+          completed
+            ? 'bg-brand-black text-brand-yellow'
+            : 'bg-gray-100 text-gray-400'
+        }`}
+      >
+        {completed ? '✓ ' : ''}{label}
+        {total > 0 && (
+          <span className="ml-2 font-normal normal-case tracking-normal opacity-80">
+            {done}/{total} done
+          </span>
+        )}
+        {xpRemaining > 0 && !completed && (
+          <span className="ml-2 opacity-70">+{xpRemaining} XP</span>
+        )}
+      </div>
+      <div className="flex-1 h-px bg-gray-200" />
     </div>
   )
 }
@@ -714,6 +749,7 @@ function ActiveLessonContent({
 // ---------------------------------------------------------------------------
 
 function NodeCard({ node, roadmapId, onUpdateStatus, displayNum, prerequisiteTitle, phaseStats, onMountRef, onNodeCompleted }) {
+  const navigate = useNavigate()
   const [expanded, setExpanded] = useState(() => node.status === 'in_progress')
   const [updating, setUpdating] = useState(false)
   const [resources, setResources] = useState(node.resources || [])
@@ -775,6 +811,13 @@ function NodeCard({ node, roadmapId, onUpdateStatus, displayNum, prerequisiteTit
 
   async function handleExpand() {
     if (isLocked) return
+
+    // Final Assessment: single-click launches the quiz page in 'final' mode.
+    // No expansion, no resources fetching — the quiz is generated server-side.
+    if (node.nodeType === 'final_assessment') {
+      navigate('/app/quiz', { state: { mode: 'final', roadmapId } })
+      return
+    }
 
     if (isAvailable) {
       // Auto-start: transition to in_progress AND expand in one click
@@ -906,6 +949,7 @@ function NodeCard({ node, roadmapId, onUpdateStatus, displayNum, prerequisiteTit
             <span className={`text-xs px-1.5 py-0.5 rounded font-bold uppercase tracking-wide flex-shrink-0 ${
               node.nodeType === 'project' ? 'bg-blue-100 text-blue-700'
               : node.nodeType === 'certification' ? 'bg-purple-100 text-purple-700'
+              : node.nodeType === 'final_assessment' ? 'bg-amber-100 text-amber-700'
               : 'bg-gray-100 text-gray-500'
             }`}>
               {NODE_TYPE_LABEL[node.nodeType] || node.nodeType}
@@ -1054,6 +1098,8 @@ function NodeCard({ node, roadmapId, onUpdateStatus, displayNum, prerequisiteTit
 // ---------------------------------------------------------------------------
 
 export default function RoadmapPage() {
+  const navigate = useNavigate()
+  const location = useLocation()
   const {
     roadmaps,
     currentRoadmap,
@@ -1070,6 +1116,16 @@ export default function RoadmapPage() {
   const [selectedRoadmapId, setSelectedRoadmapId] = useState(null)
   const [isRepairing, setIsRepairing] = useState(false)
   const [nextUpNode, setNextUpNode] = useState(null)
+
+  // When QuizPage navigates back after a passing Final Assessment, refetch the
+  // roadmap so cert nodes appear unlocked and the final_assessment node is marked complete.
+  useEffect(() => {
+    if (location.state?.finalAssessmentPassed && currentRoadmap?.id) {
+      fetchRoadmap(currentRoadmap.id)
+      toast.success('Final Assessment passed! Certifications unlocked.')
+      navigate('.', { replace: true, state: {} })
+    }
+  }, [location.state?.finalAssessmentPassed, currentRoadmap?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-scroll to active node on page load
   const nodeRefs = useRef({})
@@ -1166,17 +1222,22 @@ export default function RoadmapPage() {
     )
   }
 
+  // Exclude milestone and final_assessment from user-facing counts.
+  // final_assessment is a gate node, not a regular learnable node — if it were
+  // counted, adding it to a roadmap would lower existing users' completion %.
+  const _isCountableNode = (n) => n.nodeType !== 'milestone' && n.nodeType !== 'final_assessment'
+
   const completionPct = parseFloat(currentRoadmap?.completionPercentage || 0)
   const completedCount = currentRoadmap?.nodes?.filter(
-    (n) => n.status === 'completed' && n.nodeType !== 'milestone'
+    (n) => n.status === 'completed' && _isCountableNode(n)
   ).length || 0
-  const totalCount = currentRoadmap?.nodes?.filter((n) => n.nodeType !== 'milestone').length || 0
+  const totalCount = currentRoadmap?.nodes?.filter(_isCountableNode).length || 0
   const allLocked = currentRoadmap?.nodes?.length > 0 &&
     currentRoadmap.nodes.every((n) => n.status === 'locked' || n.nodeType === 'milestone')
 
   const streakCount = gamProfile?.streakCount ?? 0
   const remainingHours = currentRoadmap?.nodes
-    ?.filter((n) => n.status !== 'completed' && n.nodeType !== 'milestone')
+    ?.filter((n) => n.status !== 'completed' && _isCountableNode(n))
     .reduce((sum, n) => sum + (n.estimatedHours || 0), 0) ?? 0
 
   // Build phase stats map: for each milestone, count done vs total nodes in its phase
@@ -1229,14 +1290,24 @@ export default function RoadmapPage() {
     })
   }
 
-  // Group nodes into phases for sub-section rendering.
+  // Does this roadmap include the new Final Assessment node? That controls whether
+  // certifications pull out to a global trailing section vs. remain inline per-phase
+  // (legacy roadmaps have certs under a Phase 4 milestone and should still render that way).
+  const hasFinalAssessment = !!currentRoadmap?.nodes?.some((n) => n.nodeType === 'final_assessment')
+
+  // Group nodes into phases for sub-section rendering. When the roadmap has a
+  // final_assessment, final_assessment + certification nodes are collected into
+  // trailingSections instead of being pushed into a phase group.
   const phaseGroups = []
+  const trailingSections = { final_assessment: [], certification: [] }
   if (currentRoadmap?.nodes) {
     let currentGroup = { milestone: null, nodes: [] }
     for (const node of currentRoadmap.nodes) {
       if (node.nodeType === 'milestone') {
         phaseGroups.push(currentGroup)
         currentGroup = { milestone: node, nodes: [] }
+      } else if (hasFinalAssessment && (node.nodeType === 'final_assessment' || node.nodeType === 'certification')) {
+        trailingSections[node.nodeType].push(node)
       } else {
         currentGroup.nodes.push(node)
       }
@@ -1372,6 +1443,46 @@ export default function RoadmapPage() {
                     {nodes.map(renderNode)}
                   </div>
                 ))}
+              </div>
+            )
+          })}
+          {GLOBAL_TRAILING_SECTIONS.map(({ type, label }) => {
+            const nodes = trailingSections[type]
+            if (!nodes || nodes.length === 0) return null
+            const total = nodes.length
+            const done = nodes.filter((n) => n.status === 'completed').length
+            const xpRemaining = nodes
+              .filter((n) => n.status !== 'completed')
+              .reduce((sum, n) => sum + (n.xpReward || 0), 0)
+            const completed = done === total && total > 0
+            const renderTrailingNode = (node) => {
+              const { displayNum, prereq } = nodeDisplayData[node.id] ?? {}
+              return (
+                <NodeCard
+                  key={node.id}
+                  node={node}
+                  displayNum={displayNum ?? null}
+                  roadmapId={currentRoadmap.id}
+                  onUpdateStatus={updateNodeStatus}
+                  prerequisiteTitle={prereq?.title ?? null}
+                  phaseStats={null}
+                  onMountRef={(el) => { nodeRefs.current[node.id] = el }}
+                  onNodeCompleted={(newlyUnlocked) => {
+                    if (newlyUnlocked?.length > 0) setNextUpNode(newlyUnlocked[0])
+                  }}
+                />
+              )
+            }
+            return (
+              <div key={type}>
+                <PhaseHeader
+                  label={label}
+                  completed={completed}
+                  total={total}
+                  done={done}
+                  xpRemaining={xpRemaining}
+                />
+                {nodes.map(renderTrailingNode)}
               </div>
             )
           })}
