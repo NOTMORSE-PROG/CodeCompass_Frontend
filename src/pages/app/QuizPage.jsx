@@ -74,6 +74,11 @@ export default function QuizPage() {
       const { data } = isFinalMode
         ? await roadmapApi.startFinalAssessment(roadmapId)
         : await roadmapApi.startAssessment(roadmapId, nodeId, resource.id)
+      if (!Array.isArray(data?.questions) || !data?.sessionId) {
+        toast.error('Unexpected server response. Returning to roadmap.')
+        navigate('/app/roadmap', { replace: true })
+        return
+      }
       setSessionId(data.sessionId)
       setQuestions(data.questions)
       setQuizStatus('questions')
@@ -85,6 +90,7 @@ export default function QuizPage() {
 
   // Timer expired — record whatever was selected (or null) and advance
   function handleAutoAdvance() {
+    if (quizStatus === 'submitting') return
     const newAnswers = { ...answers, [String(currentQuestion)]: selectedAnswer ?? null }
     setAnswers(newAnswers)
     advance(newAnswers)
@@ -92,6 +98,7 @@ export default function QuizPage() {
 
   // Next / Submit button — only callable when selectedAnswer is set
   function handleNext() {
+    if (quizStatus === 'submitting') return
     if (!selectedAnswer) return
     const newAnswers = { ...answers, [String(currentQuestion)]: selectedAnswer }
     setAnswers(newAnswers)
@@ -111,6 +118,7 @@ export default function QuizPage() {
   }
 
   async function handleSubmitFinal(finalAnswers) {
+    if (quizStatus === 'submitting') return
     setQuizStatus('submitting')
     try {
       const { data } = isFinalMode
@@ -118,6 +126,11 @@ export default function QuizPage() {
         : await roadmapApi.submitAssessment(
             roadmapId, nodeId, resource.id, sessionId, finalAnswers
           )
+      if (!data || !Array.isArray(data.results)) {
+        toast.error('Unexpected response from server.')
+        navigate('/app/roadmap', { replace: true })
+        return
+      }
       setResult(data)
       setQuizStatus(data.passed ? 'passed' : 'failed')
       if (data.passed) fireSmallConfetti()
@@ -192,6 +205,7 @@ export default function QuizPage() {
 
   // ── Active quiz ───────────────────────────────────────────────────────────────
   const q = questions[currentQuestion]
+  if (!q || !q.options) return null
   const timerPct = (timeLeft / 15) * 100
   const timerBarColor = timeLeft >= 8 ? 'bg-green-400' : timeLeft >= 4 ? 'bg-brand-yellow' : 'bg-red-400'
   const timerTextColor = timeLeft >= 8 ? 'text-green-600' : timeLeft >= 4 ? 'text-yellow-600' : 'text-red-500'
@@ -297,6 +311,7 @@ export default function QuizPage() {
 
 function QuizResults({ quizStatus, result, questions, onBackPassed, onBackFailed, onRetry }) {
   const passed = quizStatus === 'passed'
+  if (!result) return null
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -309,7 +324,7 @@ function QuizResults({ quizStatus, result, questions, onBackPassed, onBackFailed
             <div>
               <p className="text-lg sm:text-xl font-bold text-green-700">Quiz Passed!</p>
               <p className="text-sm text-green-600 mt-0.5">
-                {result.correctCount} / {result.totalQuestions} correct · {result.score}%
+                {result.correctCount ?? 0} / {result.totalQuestions ?? 0} correct · {result.score ?? 0}%
               </p>
             </div>
           </div>
@@ -319,7 +334,7 @@ function QuizResults({ quizStatus, result, questions, onBackPassed, onBackFailed
             <div>
               <p className="text-lg sm:text-xl font-bold text-red-700">Not Quite</p>
               <p className="text-sm text-red-600 mt-0.5">
-                {result.correctCount} / {result.totalQuestions} correct · need {result.passThreshold}% to pass
+                {result.correctCount ?? 0} / {result.totalQuestions ?? 0} correct · need {result.passThreshold ?? 0}% to pass
               </p>
             </div>
           </div>
@@ -327,7 +342,7 @@ function QuizResults({ quizStatus, result, questions, onBackPassed, onBackFailed
 
         {/* Per-question breakdown — all shown, no collapse */}
         <div className="space-y-4 mb-6">
-          {result.results.map((r, i) => {
+          {(result.results ?? []).map((r, i) => {
             const q = questions[i]
             const options = q?.options ?? {}
             return (

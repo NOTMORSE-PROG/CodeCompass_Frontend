@@ -1046,18 +1046,26 @@ export default function AIChatPage() {
           </div>
           {/* Textarea + send */}
           <div className="p-4 pt-2 flex gap-3">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={isStreaming}
-              placeholder="Ask anything... (Enter to send)"
-              rows={2}
-              className="flex-1 px-4 py-3 rounded-xl border border-gray-200 text-brand-black
-                         placeholder:text-brand-gray-mid resize-none
-                         focus:outline-none focus:ring-2 focus:ring-brand-yellow focus:border-transparent
-                         disabled:opacity-50 text-sm"
-            />
+            <div className="flex-1 relative">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isStreaming}
+                maxLength={4000}
+                placeholder="Ask anything... (Enter to send)"
+                rows={2}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 text-brand-black
+                           placeholder:text-brand-gray-mid resize-none
+                           focus:outline-none focus:ring-2 focus:ring-brand-yellow focus:border-transparent
+                           disabled:opacity-50 text-sm"
+              />
+              {input.length > 3600 && (
+                <span className="absolute bottom-2 right-3 text-xs text-red-400">
+                  {input.length}/4000
+                </span>
+              )}
+            </div>
             <button
               onClick={handleSend}
               disabled={!input.trim() || isStreaming}
