@@ -517,11 +517,11 @@ function ActiveLessonContent({
   const videoId = getVideoId(resource)
   const isUnavailable = resource.url === 'yt:unavailable'
 
-  // Unavailable YouTube resources auto-complete on open — there's no video to
-  // watch and the UI now omits the "Mark as Visited" button. Component is keyed
-  // by activeResource.id so this runs once per lesson selection.
+  // Unavailable YouTube + GitHub resources auto-complete on open — there's no
+  // video to watch and the UI now omits "Mark as Visited" entirely. Component
+  // is keyed by activeResource.id so this runs once per lesson selection.
   useEffect(() => {
-    if (isYT && !videoId && !isDone) {
+    if (!isDone && ((isYT && !videoId) || isGH)) {
       onMarkLessonDone(resource.id)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -623,10 +623,10 @@ function ActiveLessonContent({
     )
   }
 
-  // GitHub → external link card + Mark as Visited
+  // GitHub → external link card (auto-marks done on select via useEffect above)
   if (isGH) {
     return (
-      <div className="mt-3 space-y-2">
+      <div className="mt-3">
         <a
           href={resource.url}
           target="_blank"
@@ -646,21 +646,6 @@ function ActiveLessonContent({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
           </svg>
         </a>
-        {!isDone && (
-          <button
-            onClick={() => onMarkLessonDone(resource.id)}
-            className="w-full py-2 px-4 bg-green-600 text-white font-bold text-sm rounded-lg
-                       hover:bg-green-700 active:scale-95 transition-all"
-          >
-            Mark as Visited ✓
-          </button>
-        )}
-        {isDone && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 border border-green-200">
-            <span className="text-green-600 font-bold">✓</span>
-            <span className="text-sm text-green-700 font-semibold">Marked as visited</span>
-          </div>
-        )}
       </div>
     )
   }
