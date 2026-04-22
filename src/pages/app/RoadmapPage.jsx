@@ -517,6 +517,15 @@ function ActiveLessonContent({
   const videoId = getVideoId(resource)
   const isUnavailable = resource.url === 'yt:unavailable'
 
+  // Unavailable YouTube resources auto-complete on open — there's no video to
+  // watch and the UI now omits the "Mark as Visited" button. Component is keyed
+  // by activeResource.id so this runs once per lesson selection.
+  useEffect(() => {
+    if (isYT && !videoId && !isDone) {
+      onMarkLessonDone(resource.id)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   // YouTube with a resolvable video ID → YT IFrame player + gated quiz
   if (isYT && videoId) {
     return (
@@ -601,38 +610,15 @@ function ActiveLessonContent({
         </div>
       )
     }
-    const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(resource.title)}`
     return (
-      <div className="mt-3 space-y-2">
-        <a
-          href={searchUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-3 p-3 rounded-xl border border-dashed border-gray-200 bg-gray-50 hover:border-red-300 hover:bg-red-50 transition-all group"
-        >
-          <span className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-100 text-red-500 text-xs font-bold flex-shrink-0">
-            YT
-          </span>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-gray-700 truncate group-hover:text-red-600">{resource.title}</p>
-            <p className="text-xs text-gray-400">Search on YouTube ↗</p>
-          </div>
-        </a>
-        {!isDone && (
-          <button
-            onClick={() => onMarkLessonDone(resource.id)}
-            className="w-full py-2 px-4 bg-green-600 text-white font-bold text-sm rounded-lg
-                       hover:bg-green-700 active:scale-95 transition-all"
-          >
-            Mark as Visited ✓
-          </button>
-        )}
-        {isDone && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-green-50 border border-green-200">
-            <span className="text-green-600 font-bold">✓</span>
-            <span className="text-sm text-green-700 font-semibold">Marked as visited</span>
-          </div>
-        )}
+      <div className="mt-3 flex items-center gap-3 p-3 rounded-xl border border-dashed border-gray-200 bg-gray-50">
+        <span className="w-8 h-8 rounded-lg flex items-center justify-center bg-red-100 text-red-400 text-xs font-bold flex-shrink-0">
+          YT
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-500 truncate">{resource.title}</p>
+          <p className="text-xs text-gray-400">Video unavailable</p>
+        </div>
       </div>
     )
   }
