@@ -748,7 +748,7 @@ function ActiveLessonContent({
 // NodeCard
 // ---------------------------------------------------------------------------
 
-function NodeCard({ node, roadmapId, onUpdateStatus, displayNum, prerequisiteTitle, phaseStats, onMountRef, onNodeCompleted }) {
+function NodeCard({ node, roadmapId, onUpdateStatus, displayNum, prerequisiteTitle, phaseStats, onMountRef, onNodeCompleted, roadmapTitle, careerPath }) {
   const navigate = useNavigate()
   const [expanded, setExpanded] = useState(() => node.status === 'in_progress')
   const [updating, setUpdating] = useState(false)
@@ -815,7 +815,14 @@ function NodeCard({ node, roadmapId, onUpdateStatus, displayNum, prerequisiteTit
     // Final Assessment: single-click launches the quiz page in 'final' mode.
     // No expansion, no resources fetching — the quiz is generated server-side.
     if (node.nodeType === 'final_assessment') {
-      navigate('/app/quiz', { state: { mode: 'final', roadmapId } })
+      navigate('/app/quiz', {
+        state: {
+          mode: 'final',
+          roadmapId,
+          roadmapTitle: roadmapTitle ?? '',
+          careerPath:   careerPath  ?? '',
+        }
+      })
       return
     }
 
@@ -1470,6 +1477,8 @@ export default function RoadmapPage() {
                   onNodeCompleted={(newlyUnlocked) => {
                     if (newlyUnlocked?.length > 0) setNextUpNode(newlyUnlocked[0])
                   }}
+                  roadmapTitle={type === 'final_assessment' ? (currentRoadmap.title ?? '') : undefined}
+                  careerPath={type === 'final_assessment' ? (currentRoadmap.careerPath ?? '') : undefined}
                 />
               )
             }

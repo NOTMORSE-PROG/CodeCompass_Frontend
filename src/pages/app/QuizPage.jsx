@@ -24,10 +24,10 @@ function fireSmallConfetti() {
 export default function QuizPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { roadmapId, nodeId, resource, mode } = location.state ?? {}
+  const { roadmapId, nodeId, resource, mode, roadmapTitle, careerPath } = location.state ?? {}
   const isFinalMode = mode === 'final'
 
-  const [quizStatus, setQuizStatus] = useState('loading')
+  const [quizStatus, setQuizStatus] = useState(isFinalMode ? 'overview' : 'loading')
   // 'loading' | 'questions' | 'submitting' | 'passed' | 'failed'
   const [sessionId, setSessionId] = useState(null)
   const [questions, setQuestions] = useState([])
@@ -48,7 +48,7 @@ export default function QuizPage() {
       navigate('/app/roadmap', { replace: true })
       return
     }
-    startQuiz()
+    if (!isFinalMode) startQuiz()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Timer countdown ──────────────────────────────────────────────────────────
@@ -170,6 +170,64 @@ export default function QuizPage() {
   }
 
   // ── Render ────────────────────────────────────────────────────────────────────
+  if (quizStatus === 'overview') {
+    const subtitle = [roadmapTitle, careerPath].filter(Boolean).join(' · ')
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4 py-8">
+        <div className="w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-5">
+
+          <div>
+            <span className="text-xs font-bold uppercase tracking-widest text-brand-gray-mid">
+              Phase 4
+            </span>
+            <h1 className="text-2xl font-bold text-brand-black mt-1">Final Assessment</h1>
+            {subtitle && (
+              <p className="text-sm text-brand-gray-mid mt-0.5">{subtitle}</p>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            {[
+              { icon: '📋', label: 'Questions',         value: '10 multiple choice' },
+              { icon: '⏱️', label: 'Time per question', value: '15 seconds' },
+              { icon: '🎯', label: 'Topics covered',    value: 'All phases of your roadmap' },
+              { icon: '🏆', label: 'Pass threshold',    value: '~70%  (7 of 10 correct)' },
+              { icon: '🔓', label: 'On pass',           value: 'Certifications unlock' },
+            ].map(({ icon, label, value }) => (
+              <div key={label} className="flex items-start gap-3">
+                <span className="text-lg leading-none mt-0.5">{icon}</span>
+                <div>
+                  <p className="text-xs text-brand-gray-mid font-medium">{label}</p>
+                  <p className="text-sm font-semibold text-brand-black">{value}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-800">
+            Questions are <strong>analysis and evaluation level</strong> — harder than
+            per-video quizzes. Make sure you&apos;ve completed all phases before attempting.
+          </div>
+
+          <button
+            onClick={startQuiz}
+            className="w-full py-3 rounded-xl bg-brand-yellow text-brand-black font-bold
+                       text-sm hover:opacity-90 active:scale-[0.99] transition-all"
+          >
+            Begin Assessment
+          </button>
+          <button
+            onClick={() => navigate(-1)}
+            className="w-full py-2 text-sm text-brand-gray-mid hover:text-brand-black transition"
+          >
+            Back to Roadmap
+          </button>
+
+        </div>
+      </div>
+    )
+  }
+
   if (quizStatus === 'loading') {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
